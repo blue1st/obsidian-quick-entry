@@ -13,7 +13,6 @@
   "plugins": {
     "@release-it/bumper": {
       "out": [
-        "package.json",
         {
           "file": "src-tauri/tauri.conf.json",
           "path": "version"
