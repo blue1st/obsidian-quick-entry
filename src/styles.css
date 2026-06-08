@@ -368,3 +368,56 @@ body.settings-page {
   from { opacity: 0; transform: translateY(-5px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+.header-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 12px;
+}
+
+.heading-control-container {
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text-color);
+  opacity: 0.8;
+  gap: 6px;
+}
+
+.heading-control-container input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent-color);
+  cursor: pointer;
+  margin: 0;
+}
+
+.heading-control-container label {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+}
+
+.heading-control-container input[type="text"] {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: var(--text-color);
+  outline: none;
+  font-size: 0.8rem;
+  width: 150px;
+  transition: border-color 0.2s;
+}
+
+.heading-control-container input[type="text"]:focus {
+  border-color: var(--accent-color);
+}
+
+@media (prefers-color-scheme: light) {
+  .heading-control-container input[type="text"] {
+    background: rgba(0, 0, 0, 0.03);
+  }
+}

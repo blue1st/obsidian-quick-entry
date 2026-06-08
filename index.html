@@ -14,11 +14,18 @@
       <div id="error-container" class="hidden">
         <p id="error-message"></p>
       </div>
-      <div class="target-select-container">
-        <label for="target-select">To:</label>
-        <select id="target-select">
-          <option value="daily">Daily Note</option>
-        </select>
+      <div class="header-controls">
+        <div class="target-select-container">
+          <label for="target-select">To:</label>
+          <select id="target-select">
+            <option value="daily">Daily Note</option>
+          </select>
+        </div>
+        <div class="heading-control-container">
+          <input id="custom-heading-toggle" type="checkbox" />
+          <label for="custom-heading-toggle">Custom Heading</label>
+          <input id="custom-heading-input" type="text" class="hidden" placeholder="## Custom Heading" autocomplete="off" />
+        </div>
       </div>
       <form id="entry-form">
         <textarea 

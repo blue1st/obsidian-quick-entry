@@ -33,11 +33,12 @@ function hideError() {
 
 async function appendToDailyNote(text: string) {
   try {
-    let formattedText = "";
-    const customHeading = localStorage.getItem("obsidian-custom-heading") || "";
+    const customHeadingToggle = document.getElementById("custom-heading-toggle") as HTMLInputElement;
+    const customHeadingInput = document.getElementById("custom-heading-input") as HTMLInputElement;
     
-    if (customHeading) {
-      formattedText = `\n\n${customHeading}\n\n${text}`;
+    let formattedText = "";
+    if (customHeadingToggle?.checked && customHeadingInput?.value.trim()) {
+      formattedText = `\n\n${customHeadingInput.value.trim()}\n\n${text}`;
     } else {
       const now = new Date();
       const dateStr = now.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "-");
@@ -119,6 +120,38 @@ function initMainPage() {
   targetSelect?.addEventListener("change", () => {
     localStorage.setItem("obsidian-last-selected-destination", targetSelect.value);
   });
+
+  const customHeadingToggle = document.getElementById("custom-heading-toggle") as HTMLInputElement;
+  const customHeadingInput = document.getElementById("custom-heading-input") as HTMLInputElement;
+
+  if (customHeadingToggle && customHeadingInput) {
+    const useCustomHeading = localStorage.getItem("obsidian-use-custom-heading") === "true";
+    const popupCustomHeading = localStorage.getItem("obsidian-popup-custom-heading") || "";
+
+    customHeadingToggle.checked = useCustomHeading;
+    customHeadingInput.value = popupCustomHeading;
+
+    if (useCustomHeading) {
+      customHeadingInput.classList.remove("hidden");
+    } else {
+      customHeadingInput.classList.add("hidden");
+    }
+
+    customHeadingToggle.addEventListener("change", () => {
+      const checked = customHeadingToggle.checked;
+      localStorage.setItem("obsidian-use-custom-heading", String(checked));
+      if (checked) {
+        customHeadingInput.classList.remove("hidden");
+        customHeadingInput.focus();
+      } else {
+        customHeadingInput.classList.add("hidden");
+      }
+    });
+
+    customHeadingInput.addEventListener("input", () => {
+      localStorage.setItem("obsidian-popup-custom-heading", customHeadingInput.value.trim());
+    });
+  }
 
   entryForm?.addEventListener("submit", (e) => {
     e.preventDefault();
