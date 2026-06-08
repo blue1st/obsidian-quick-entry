@@ -14,9 +14,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # macOS (Universal binary: Intel + Apple Silicon)
           - platform: 'macos-latest'
-          - platform: 'ubuntu-22.04'
+            targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
+            args: '--target universal-apple-darwin'
+          
+          # Windows x64
           - platform: 'windows-latest'
+            targets: ''
+            args: ''
+            
+          # Windows ARM64 (Native runner)
+          - platform: 'windows-11-arm'
+            targets: ''
+            args: ''
+            
+          # Linux x64
+          - platform: 'ubuntu-22.04'
+            targets: ''
+            args: ''
+            
+          # Linux ARM64 (Native runner)
+          - platform: 'ubuntu-22.04-arm'
+            targets: ''
+            args: ''
 
     runs-on: ${{ matrix.platform }}
     
@@ -31,6 +52,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
 
       - name: Cache Rust dependencies
         uses: swatinem/rust-cache@v2
@@ -38,7 +61,7 @@ jobs:
           workspaces: './src-tauri -> target'
 
       - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: contains(matrix.platform, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -56,3 +79,4 @@ jobs:
           releaseBody: 'See the assets below to download and install this version.'
           releaseDraft: true
           prerelease: false
+          args: ${{ matrix.args }}
