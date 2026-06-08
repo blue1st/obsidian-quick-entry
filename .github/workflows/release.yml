@@ -75,8 +75,34 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: v__VERSION__
-          releaseName: 'App v__VERSION__'
+          releaseName: 'Obsidian Quick Entry v__VERSION__'
           releaseBody: 'See the assets below to download and install this version.'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  update-tap:
+    needs: publish-tauri
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Download artifacts from release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          gh release download v$VERSION --pattern "*.dmg" --dir .
+          ls -R
+
+      - name: Update Homebrew Tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: ./scripts/update-homebrew.sh
