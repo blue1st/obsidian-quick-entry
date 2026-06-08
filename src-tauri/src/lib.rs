@@ -6,11 +6,15 @@ use tauri::Manager;
 pub fn run() {
     #[cfg(target_os = "macos")]
     {
-        // Add Homebrew and standard binary paths to PATH on macOS when launched as a GUI app
+        // Add Homebrew, standard binary paths, and Obsidian app paths to PATH on macOS
         let mut paths = vec![
             "/opt/homebrew/bin".to_string(),
             "/usr/local/bin".to_string(),
+            "/Applications/Obsidian.app/Contents/MacOS".to_string(),
         ];
+        if let Ok(home) = std::env::var("HOME") {
+            paths.push(format!("{}/Applications/Obsidian.app/Contents/MacOS", home));
+        }
         if let Ok(existing_path) = std::env::var("PATH") {
             paths.push(existing_path);
         }
