@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Obsidian Quick Entry</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <!-- Main Quick Entry View -->
+    <main id="main-view" class="container">
+      <div id="error-container" class="hidden">
+        <p id="error-message"></p>
+      </div>
+      <div class="target-select-container">
+        <label for="target-select">To:</label>
+        <select id="target-select">
+          <option value="daily">Daily Note</option>
+        </select>
+      </div>
+      <form id="entry-form">
+        <textarea 
+          id="entry-input" 
+          placeholder="Append to daily note..." 
+          autofocus 
+        ></textarea>
+        <button type="submit" id="submit-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </button>
+      </form>
+      <div class="footer-hints">
+        <span>Press <strong>⌘Enter</strong> to save</span>
+        <span id="open-settings-btn" class="clickable">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 2px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>Settings
+        </span>
+      </div>
+    </main>
+
+    <!-- Dedicated Settings View -->
+    <main id="settings-view" class="settings-container hidden">
+      <h2 class="settings-title">Settings</h2>
+      
+      <div class="settings-section">
+        <h3>Obsidian Vault</h3>
+        <div class="input-group">
+          <label for="vault-input">Vault Name:</label>
+          <input id="vault-input" type="text" placeholder="Default (Active Vault)" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Launch at OS Startup</h3>
+        <div class="checkbox-group">
+          <input id="autostart-checkbox" type="checkbox" />
+          <label for="autostart-checkbox">Start Obsidian Quick Entry on system login</label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Predefined Target Files</h3>
+        <div class="file-manager">
+          <div class="add-file-row">
+            <input id="new-file-input" type="text" placeholder="Note Name (e.g. Ideas)" autocomplete="off" />
+            <button id="add-file-btn" type="button">Add</button>
+          </div>
+          <ul id="files-list" class="files-list">
+            <!-- Populated via JavaScript -->
+          </ul>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button id="close-settings-btn" class="primary-btn">Save & Close</button>
+      </div>
+    </main>
+  </body>
+</html>
