@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "release": "release-it"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -16,7 +17,9 @@
     "@tauri-apps/plugin-shell": "^2.3.5"
   },
   "devDependencies": {
+    "@release-it/bumper": "^7.0.6",
     "@tauri-apps/cli": "^2",
+    "release-it": "^20.2.0",
     "typescript": "~5.6.2",
     "vite": "^6.0.3"
   }
