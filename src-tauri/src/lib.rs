@@ -4,6 +4,19 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "macos")]
+    {
+        // Add Homebrew and standard binary paths to PATH on macOS when launched as a GUI app
+        let mut paths = vec![
+            "/opt/homebrew/bin".to_string(),
+            "/usr/local/bin".to_string(),
+        ];
+        if let Ok(existing_path) = std::env::var("PATH") {
+            paths.push(existing_path);
+        }
+        std::env::set_var("PATH", paths.join(":"));
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
