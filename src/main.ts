@@ -33,12 +33,17 @@ function hideError() {
 
 async function appendToDailyNote(text: string) {
   try {
-    const now = new Date();
-    const dateStr = now.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "-");
-    const timeStr = now.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+    let formattedText = "";
+    const customHeading = localStorage.getItem("obsidian-custom-heading") || "";
     
-    // Format: \n\n## YYYY-MM-DD HH:mm\n\n<text>
-    const formattedText = `\n\n## ${dateStr} ${timeStr}\n\n${text}`;
+    if (customHeading) {
+      formattedText = `\n\n${customHeading}\n\n${text}`;
+    } else {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "-");
+      const timeStr = now.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+      formattedText = `\n\n## ${dateStr} ${timeStr}\n\n${text}`;
+    }
     
     const targetSelect = document.getElementById("target-select") as HTMLSelectElement;
     const destination = targetSelect ? targetSelect.value : "daily";
@@ -165,18 +170,27 @@ function initMainPage() {
 
 async function initSettingsPage() {
   const vaultInput = document.getElementById("vault-input") as HTMLInputElement;
+  const headingInput = document.getElementById("heading-input") as HTMLInputElement;
   const autostartCheckbox = document.getElementById("autostart-checkbox") as HTMLInputElement;
   const newFileInput = document.getElementById("new-file-input") as HTMLInputElement;
   const addFileBtn = document.getElementById("add-file-btn") as HTMLButtonElement;
   const filesList = document.getElementById("files-list") as HTMLUListElement;
   const closeSettingsBtn = document.getElementById("close-settings-btn") as HTMLButtonElement;
 
-  // 1. Vault Name Configuration
+  // 1. Vault Name & Formatting Configuration
   let vaultName = localStorage.getItem("obsidian-vault") || "";
   if (vaultInput) {
     vaultInput.value = vaultName;
     vaultInput.addEventListener("input", () => {
       localStorage.setItem("obsidian-vault", vaultInput.value.trim());
+    });
+  }
+
+  let customHeading = localStorage.getItem("obsidian-custom-heading") || "";
+  if (headingInput) {
+    headingInput.value = customHeading;
+    headingInput.addEventListener("input", () => {
+      localStorage.setItem("obsidian-custom-heading", headingInput.value.trim());
     });
   }
 
