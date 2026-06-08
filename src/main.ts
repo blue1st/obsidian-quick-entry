@@ -57,14 +57,17 @@ async function appendToDailyNote(text: string) {
       args.push(`vault=${currentVault}`);
     }
 
+    const isWindows = navigator.userAgent.toLowerCase().includes("win");
+    const contentArg = isWindows ? formattedText.replace(/\r?\n/g, "\\n") : formattedText;
+
     if (destination.startsWith("file:")) {
       const fileName = destination.substring(5);
       args.push("append");
       args.push(`file=${fileName}`);
-      args.push(`content=${formattedText}`);
+      args.push(`content=${contentArg}`);
     } else {
       args.push("daily:append");
-      args.push(`content=${formattedText}`);
+      args.push(`content=${contentArg}`);
     }
     
     const cmd = Command.create("obsidian", args);
