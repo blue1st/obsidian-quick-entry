@@ -27,6 +27,12 @@
           <select id="target-select">
             <option value="daily">Daily Note</option>
           </select>
+          <button type="button" id="view-note-btn" class="icon-toggle-btn icon-btn-embedded" title="Read Note Content">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+          <button type="button" id="open-obsidian-btn" class="icon-toggle-btn icon-btn-embedded" title="Open in Obsidian">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          </button>
         </div>
         <div class="right-header-controls">
           <div id="heading-controls" class="heading-control-container">
@@ -40,6 +46,10 @@
       <!-- Memo Mode Form -->
       <form id="entry-form">
         <div class="textarea-wrapper">
+          <!-- Tag Suggestion Popup -->
+          <div id="tag-suggest-popup" class="tag-suggest-popup hidden">
+            <ul id="tag-suggest-list" class="tag-suggest-list"></ul>
+          </div>
           <textarea 
             id="entry-input" 
             placeholder="Append to daily note..." 
@@ -78,9 +88,6 @@
           <button type="button" id="toggle-memo-task-btn" class="icon-toggle-btn" title="Add Tasks Helper">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
           </button>
-          <button type="button" id="view-note-btn" class="icon-toggle-btn" title="Read Note Content">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-          </button>
           <span id="footer-save-hint">Press <strong>⌘Enter</strong> to save</span>
         </div>
         <div class="right-footer">
@@ -92,9 +99,14 @@
       <div id="note-viewer-drawer" class="drawer">
         <div class="drawer-header">
           <span id="drawer-title" class="drawer-title">Note Content</span>
-          <button type="button" id="close-drawer-btn" class="icon-btn" title="Close">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
+          <div class="drawer-header-actions">
+            <button type="button" id="drawer-open-obsidian-btn" class="icon-btn" title="Open in Obsidian">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </button>
+            <button type="button" id="close-drawer-btn" class="icon-btn" title="Close">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
         </div>
         <div id="drawer-loading" class="drawer-loading spinner-container hidden">
           <div class="spinner"></div>

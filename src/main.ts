@@ -8,6 +8,59 @@ const errorMessage = document.getElementById("error-message");
 
 let isExecutingCommand = false;
 
+let cachedTags: string[] = [];
+
+async function fetchTags() {
+  try {
+    const currentVault = localStorage.getItem("obsidian-vault") || "";
+    const args: string[] = [];
+    if (currentVault) {
+      args.push(`vault=${currentVault}`);
+    }
+    args.push("tags");
+    args.push("format=json");
+    
+    console.log("Fetching Obsidian tags...");
+    const output = await executeObsidianCommand(args);
+    if (output.code === 0) {
+      const parsed = parseJsonOutput(output.stdout);
+      if (Array.isArray(parsed)) {
+        cachedTags = parsed.map((item: any) => item.tag);
+        console.log(`Fetched ${cachedTags.length} tags:`, cachedTags);
+      }
+    } else {
+      console.warn("Failed to fetch tags via CLI:", output.stderr);
+    }
+  } catch (err) {
+    console.error("Error fetching tags:", err);
+  }
+}
+
+async function openInObsidian() {
+  const currentVault = localStorage.getItem("obsidian-vault") || "";
+  const targetSelect = document.getElementById("target-select") as HTMLSelectElement;
+  const destination = targetSelect ? targetSelect.value : "daily";
+
+  let url = "obsidian://open?";
+  if (currentVault) {
+    url += `vault=${encodeURIComponent(currentVault)}&`;
+  }
+  if (destination.startsWith("file:")) {
+    const fileName = destination.substring(5);
+    url += `file=${encodeURIComponent(fileName)}`;
+  } else {
+    url += `daily=true`;
+  }
+  
+  console.log("Opening Obsidian URL:", url);
+  try {
+    await openUrl(url);
+  } catch (err) {
+    console.error("Failed to open Obsidian:", err);
+    showError("Failed to open Obsidian: " + err);
+  }
+}
+
 async function ensureObsidianRunning() {
   try {
     const isRunning = await invoke<boolean>("is_obsidian_running");
@@ -177,7 +230,155 @@ function initMainPage() {
   const drawerLoading = document.getElementById("drawer-loading");
   const drawerContent = document.getElementById("drawer-content");
 
+  // Open in Obsidian buttons
+  const openObsidianBtn = document.getElementById("open-obsidian-btn");
+  const drawerOpenObsidianBtn = document.getElementById("drawer-open-obsidian-btn");
+
   let isMemoTaskHelperVisible = false;
+
+  // Tag Suggestion elements and states
+  const tagSuggestPopup = document.getElementById("tag-suggest-popup");
+  const tagSuggestList = document.getElementById("tag-suggest-list");
+  let activeInputForSuggest: HTMLTextAreaElement | HTMLInputElement | null = null;
+  let currentSuggestQueryInfo: { query: string; startIndex: number } | null = null;
+  let selectedSuggestIndex = 0;
+  let filteredTags: string[] = [];
+
+  function getActiveTagQuery(input: HTMLTextAreaElement | HTMLInputElement): { query: string; startIndex: number } | null {
+    const text = input.value;
+    const cursorPos = input.selectionStart || 0;
+    const beforeCursor = text.substring(0, cursorPos);
+    const match = beforeCursor.match(/#([^\s#]*)$/);
+    if (match) {
+      const query = match[0];
+      const startIndex = cursorPos - query.length;
+      return { query, startIndex };
+    }
+    return null;
+  }
+
+  function updateTagSuggestions(input: HTMLTextAreaElement | HTMLInputElement) {
+    if (!tagSuggestPopup || !tagSuggestList) return;
+
+    const queryInfo = getActiveTagQuery(input);
+    if (!queryInfo) {
+      hideTagSuggestions();
+      return;
+    }
+
+    activeInputForSuggest = input;
+    currentSuggestQueryInfo = queryInfo;
+    const queryText = queryInfo.query.toLowerCase();
+
+    filteredTags = cachedTags.filter(tag => tag.toLowerCase().startsWith(queryText));
+
+    if (filteredTags.length === 0) {
+      hideTagSuggestions();
+      return;
+    }
+
+    tagSuggestList.innerHTML = "";
+    selectedSuggestIndex = 0;
+
+    filteredTags.forEach((tag, idx) => {
+      const li = document.createElement("li");
+      li.className = "tag-suggest-item";
+      if (idx === 0) {
+        li.classList.add("selected");
+      }
+      li.textContent = tag;
+      li.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        insertSelectedTag(tag);
+      });
+      tagSuggestList.appendChild(li);
+    });
+
+    tagSuggestPopup.classList.remove("hidden");
+    tagSuggestPopup.scrollTop = 0;
+  }
+
+  function hideTagSuggestions() {
+    tagSuggestPopup?.classList.add("hidden");
+    activeInputForSuggest = null;
+    currentSuggestQueryInfo = null;
+    filteredTags = [];
+  }
+
+  function insertSelectedTag(tag: string) {
+    if (!activeInputForSuggest || !currentSuggestQueryInfo) return;
+
+    const input = activeInputForSuggest;
+    const info = currentSuggestQueryInfo;
+    const text = input.value;
+    const cursorPos = input.selectionStart || 0;
+    const replacement = tag + " ";
+
+    const beforeText = text.substring(0, info.startIndex);
+    const afterText = text.substring(cursorPos);
+
+    input.value = beforeText + replacement + afterText;
+    const newCursorPos = info.startIndex + replacement.length;
+    input.setSelectionRange(newCursorPos, newCursorPos);
+
+    hideTagSuggestions();
+    input.focus();
+    
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function handleSuggestKeyDown(e: KeyboardEvent): boolean {
+    if (!tagSuggestPopup || tagSuggestPopup.classList.contains("hidden") || filteredTags.length === 0) {
+      return false;
+    }
+
+    const items = tagSuggestList?.querySelectorAll(".tag-suggest-item");
+    if (!items) return false;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      items[selectedSuggestIndex]?.classList.remove("selected");
+      selectedSuggestIndex = (selectedSuggestIndex + 1) % filteredTags.length;
+      items[selectedSuggestIndex]?.classList.add("selected");
+      ensureVisible(items[selectedSuggestIndex] as HTMLElement, tagSuggestPopup);
+      return true;
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      items[selectedSuggestIndex]?.classList.remove("selected");
+      selectedSuggestIndex = (selectedSuggestIndex - 1 + filteredTags.length) % filteredTags.length;
+      items[selectedSuggestIndex]?.classList.add("selected");
+      ensureVisible(items[selectedSuggestIndex] as HTMLElement, tagSuggestPopup);
+      return true;
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      const selectedTag = filteredTags[selectedSuggestIndex];
+      if (selectedTag) {
+        insertSelectedTag(selectedTag);
+      }
+      return true;
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      hideTagSuggestions();
+      return true;
+    }
+
+    return false;
+  }
+
+  function ensureVisible(item: HTMLElement, parent: HTMLElement) {
+    if (!item || !parent) return;
+    const parentTop = parent.scrollTop;
+    const parentBottom = parentTop + parent.clientHeight;
+    const itemTop = item.offsetTop;
+    const itemBottom = itemTop + item.clientHeight;
+
+    if (itemTop < parentTop) {
+      parent.scrollTop = itemTop;
+    } else if (itemBottom > parentBottom) {
+      parent.scrollTop = itemBottom - parent.clientHeight;
+    }
+  }
 
   // Load target files and populate dropdown
   function populateDropdown() {
@@ -435,7 +636,14 @@ function initMainPage() {
     toggleMemoTaskHelper();
   });
 
+  memoTaskInput?.addEventListener("input", () => {
+    updateTagSuggestions(memoTaskInput);
+  });
+
   memoTaskInput?.addEventListener("keydown", (e) => {
+    if (handleSuggestKeyDown(e)) {
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
       const val = memoTaskInput.value.trim();
@@ -447,6 +655,10 @@ function initMainPage() {
       e.preventDefault();
       toggleMemoTaskHelper();
     }
+  });
+
+  memoTaskInput?.addEventListener("blur", () => {
+    setTimeout(hideTagSuggestions, 150);
   });
 
   viewNoteBtn?.addEventListener("click", () => {
@@ -473,7 +685,6 @@ function initMainPage() {
       
       headingControls?.classList.remove("hidden");
       toggleMemoTaskBtn?.classList.remove("hidden");
-      viewNoteBtn?.classList.remove("hidden");
       entryForm?.classList.remove("hidden");
       taskViewContainer?.classList.add("hidden");
       
@@ -492,7 +703,6 @@ function initMainPage() {
       
       headingControls?.classList.add("hidden");
       toggleMemoTaskBtn?.classList.add("hidden");
-      viewNoteBtn?.classList.add("hidden");
       entryForm?.classList.add("hidden");
       taskViewContainer?.classList.remove("hidden");
       
@@ -555,11 +765,35 @@ function initMainPage() {
     }
   });
 
+  entryInput?.addEventListener("input", () => {
+    updateTagSuggestions(entryInput);
+  });
+
   entryInput?.addEventListener("keydown", (e) => {
+    if (handleSuggestKeyDown(e)) {
+      return;
+    }
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       entryForm?.requestSubmit();
     }
+  });
+
+  entryInput?.addEventListener("blur", () => {
+    setTimeout(hideTagSuggestions, 150);
+  });
+
+  // Open in Obsidian button clicks
+  openObsidianBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openInObsidian();
+  });
+
+  drawerOpenObsidianBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openInObsidian();
   });
 
   // Focus listener to refresh tasks when tray app gains focus
@@ -567,6 +801,7 @@ function initMainPage() {
     if (currentTab === "tasks") {
       await fetchTasks();
     }
+    await fetchTags();
   });
 
   // Watch for changes from the settings window
@@ -574,10 +809,14 @@ function initMainPage() {
     if (e.key === "obsidian-predefined-files") {
       populateDropdown();
     }
+    if (e.key === "obsidian-vault") {
+      fetchTags();
+    }
   });
 
   // Check CLI on load
   checkObsidianCli();
+  fetchTags();
 }
 
 async function initSettingsPage() {

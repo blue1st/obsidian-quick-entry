@@ -855,3 +855,95 @@ body.settings-page {
   opacity: 0.4;
   margin-left: 8px;
 }
+
+/* Open in Obsidian button layout */
+.icon-btn-embedded {
+  margin-left: 6px;
+  padding: 4px;
+}
+
+.drawer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Tag Suggestion Popup (Glassmorphic) */
+.textarea-wrapper {
+  position: relative;
+}
+
+.tag-suggest-popup {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  background-color: rgba(30, 30, 30, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.3);
+  max-height: 140px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: light) {
+  .tag-suggest-popup {
+    background-color: rgba(245, 245, 245, 0.95);
+  }
+}
+
+/* Custom Scrollbar for Tag Suggestions */
+.tag-suggest-popup::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tag-suggest-popup::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tag-suggest-popup::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+@media (prefers-color-scheme: light) {
+  .tag-suggest-popup::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+  }
+}
+
+.tag-suggest-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tag-suggest-item {
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.tag-suggest-item:last-child {
+  border-bottom: none;
+}
+
+@media (prefers-color-scheme: light) {
+  .tag-suggest-item {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+  }
+}
+
+.tag-suggest-item:hover,
+.tag-suggest-item.selected {
+  background-color: var(--accent-color);
+  color: #ffffff;
+}
+
