@@ -7,13 +7,10 @@ const errorContainer = document.getElementById("error-container");
 const errorMessage = document.getElementById("error-message");
 
 const isWindows = navigator.userAgent.toLowerCase().includes("win");
+let ignoreNextBlur = false;
 
 function createObsidianCommand(args: string[]) {
-  if (isWindows) {
-    return Command.create("cmd", ["/c", "obsidian", ...args]);
-  } else {
-    return Command.create("obsidian", args);
-  }
+  return Command.create("obsidian", args);
 }
 
 let currentTab: "memo" | "tasks" = "memo";
@@ -129,7 +126,7 @@ async function appendToDailyNote(text: string) {
     
     // On Windows, the Obsidian CLI may return exit code -1 (255) even on success.
     // If the exit code is non-zero but stderr is empty on Windows, we treat it as success.
-    const isSuccess = output.code === 0;
+    const isSuccess = output.code === 0 || (isWindows && output.code === -1 && !output.stderr.trim());
 
     if (!isSuccess) {
       const details = [];
@@ -584,6 +581,7 @@ function initMainPage() {
 
   // Focus listener to refresh tasks when tray app gains focus
   getCurrentWindow().listen('tauri://focus', async () => {
+    ignoreNextBlur = false;
     if (currentTab === "tasks") {
       await fetchTasks();
     }
@@ -719,6 +717,10 @@ if (window.location.hash === "#settings") {
 
   // Hide window on blur
   getCurrentWindow().listen('tauri://blur', async () => {
+    if (ignoreNextBlur) {
+      ignoreNextBlur = false;
+      return;
+    }
     await getCurrentWindow().hide();
   });
 
@@ -755,6 +757,10 @@ mainViewEl?.addEventListener("mousedown", (e) => {
     ) {
       return;
     }
+    ignoreNextBlur = true;
+    setTimeout(() => {
+      ignoreNextBlur = false;
+    }, 200);
     getCurrentWindow().startDragging();
   }
 });

@@ -25,11 +25,6 @@
           "name": "obsidian",
           "cmd": "obsidian",
           "args": true
-        },
-        {
-          "name": "cmd",
-          "cmd": "cmd",
-          "args": true
         }
       ]
     }
