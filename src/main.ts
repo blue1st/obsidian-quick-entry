@@ -74,7 +74,8 @@ async function appendToDailyNote(text: string) {
     const output = await cmd.execute();
     
     if (output.code !== 0) {
-      showError("Error appending to Obsidian: " + output.stderr);
+      const errorMsg = output.stderr.trim() || output.stdout.trim() || `Exit code ${output.code}`;
+      showError("Error appending to Obsidian: " + errorMsg);
     } else {
       const entryInput = document.getElementById("entry-input") as HTMLTextAreaElement;
       if (entryInput) {
