@@ -15,18 +15,6 @@
     "core:window:allow-start-dragging",
     "core:webview:allow-create-webview-window",
     "autostart:default",
-    "opener:default",
-    "shell:default",
-    "shell:allow-execute",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "obsidian",
-          "cmd": "obsidian",
-          "args": true
-        }
-      ]
-    }
+    "opener:default"
   ]
 }

@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Command } from "@tauri-apps/plugin-shell";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow, getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
 import { enable as enableAutostart, isEnabled as isAutostartEnabled, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
@@ -12,14 +11,6 @@ const isWindows = navigator.userAgent.toLowerCase().includes("win");
 let ignoreNextBlur = false;
 let isExecutingCommand = false;
 let cliNeedsShell = false;
-
-function createObsidianCommand(args: string[]) {
-  if (isWindows && cliNeedsShell) {
-    return Command.create("cmd", ["/c", "obsidian", ...args]);
-  } else {
-    return Command.create("obsidian", args);
-  }
-}
 
 async function ensureObsidianRunning() {
   try {
@@ -37,10 +28,9 @@ async function ensureObsidianRunning() {
 
 async function executeObsidianCommand(args: string[]) {
   await ensureObsidianRunning();
-  const cmd = createObsidianCommand(args);
   isExecutingCommand = true;
   try {
-    const output = await cmd.execute();
+    const output = await invoke<{ code: number; stdout: string; stderr: string }>("execute_obsidian_command", { args });
     return output;
   } finally {
     setTimeout(() => {
