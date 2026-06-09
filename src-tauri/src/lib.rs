@@ -1,6 +1,8 @@
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::Manager;
+use std::path::PathBuf;
+use std::collections::HashMap;
 
 #[derive(serde::Serialize)]
 struct CliTypeInfo {
@@ -135,6 +137,120 @@ fn is_obsidian_running() -> bool {
     }
 }
 
+#[derive(serde::Deserialize)]
+struct VaultInfo {
+    path: String,
+    ts: Option<u64>,
+    open: Option<bool>,
+}
+
+#[derive(serde::Deserialize)]
+struct ObsidianConfig {
+    vaults: HashMap<String, VaultInfo>,
+}
+
+fn get_obsidian_config_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var_os("APPDATA").map(PathBuf::from)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::env::var_os("HOME")
+            .map(|h| PathBuf::from(h).join("Library/Application Support"))
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config"))
+            })
+    }
+}
+
+fn resolve_vault_path(vault_name: &str) -> Option<PathBuf> {
+    let config_dir = get_obsidian_config_dir()?;
+    let config_path = config_dir.join("obsidian").join("obsidian.json");
+    if !config_path.exists() {
+        return None;
+    }
+    let file = std::fs::File::open(config_path).ok()?;
+    let config: ObsidianConfig = serde_json::from_reader(file).ok()?;
+    
+    if vault_name.is_empty() {
+        let mut best_vault: Option<&VaultInfo> = None;
+        for vault in config.vaults.values() {
+            if vault.open.unwrap_or(false) {
+                best_vault = Some(vault);
+                break;
+            }
+            match (best_vault, vault.ts) {
+                (None, _) => best_vault = Some(vault),
+                (Some(best), Some(ts)) => {
+                    if ts > best.ts.unwrap_or(0) {
+                        best_vault = Some(vault);
+                    }
+                }
+                _ => {}
+            }
+        }
+        best_vault.map(|v| PathBuf::from(&v.path))
+    } else {
+        for vault in config.vaults.values() {
+            let path = PathBuf::from(&vault.path);
+            if let Some(name) = path.file_name() {
+                if name.to_string_lossy().eq_ignore_ascii_case(vault_name) {
+                    return Some(path);
+                }
+            }
+        }
+        None
+    }
+}
+
+fn safe_join(vault_path: &std::path::Path, relative_path: &str) -> Result<PathBuf, String> {
+    let path = std::path::Path::new(relative_path);
+    for component in path.components() {
+        if component == std::path::Component::ParentDir {
+            return Err("Access denied: parent directory traversal is not allowed".to_string());
+        }
+    }
+    let target_path = vault_path.join(relative_path);
+    Ok(target_path)
+}
+
+#[tauri::command]
+fn read_vault_file(vault_name: String, relative_path: String) -> Result<String, String> {
+    let vault_path = resolve_vault_path(&vault_name)
+        .ok_or_else(|| "Vault not found".to_string())?;
+    
+    let target_path = safe_join(&vault_path, &relative_path)?;
+    
+    if !target_path.exists() {
+        return Err("File not found".to_string());
+    }
+    
+    std::fs::read_to_string(&target_path)
+        .map_err(|e| format!("Failed to read file: {}", e))
+}
+
+#[tauri::command]
+fn write_vault_file(vault_name: String, relative_path: String, content: String) -> Result<(), String> {
+    let vault_path = resolve_vault_path(&vault_name)
+        .ok_or_else(|| "Vault not found".to_string())?;
+    
+    let target_path = safe_join(&vault_path, &relative_path)?;
+    
+    if let Some(parent) = target_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directories: {}", e))?;
+    }
+    
+    std::fs::write(&target_path, content)
+        .map_err(|e| format!("Failed to write file: {}", e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "macos")]
@@ -161,7 +277,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_obsidian_cli_info,
             execute_obsidian_command,
-            is_obsidian_running
+            is_obsidian_running,
+            read_vault_file,
+            write_vault_file
         ])
         .setup(|app| {
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
