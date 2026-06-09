@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { Command } from "@tauri-apps/plugin-shell";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow, getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
@@ -68,8 +69,8 @@ function cleanTaskText(text: string): string {
 
 async function checkObsidianCli() {
   try {
-    const output = await executeObsidianCommand(["--version"]);
-    if (output.code !== 0) {
+    const isInstalled = await invoke<boolean>("check_obsidian_cli");
+    if (!isInstalled) {
       showError("Obsidian CLI not found. Please ensure it is installed and in your PATH.");
     }
   } catch (err) {
