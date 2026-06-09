@@ -129,14 +129,21 @@ pub fn run() {
             is_obsidian_running
         ])
         .setup(|app| {
+            let settings_i = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&quit_i])?;
+            let menu = Menu::with_items(app, &[&settings_i, &quit_i])?;
 
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|_app, event| match event.id.as_ref() {
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "settings" => {
+                        if let Some(window) = app.get_webview_window("settings") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
                     "quit" => {
                         std::process::exit(0);
                     }

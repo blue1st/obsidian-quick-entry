@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { WebviewWindow, getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
 import { enable as enableAutostart, isEnabled as isAutostartEnabled, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
@@ -155,7 +154,6 @@ function initMainPage() {
   const entryForm = document.getElementById("entry-form") as HTMLFormElement;
   const entryInput = document.getElementById("entry-input") as HTMLTextAreaElement;
   const targetSelect = document.getElementById("target-select") as HTMLSelectElement;
-  const openSettingsBtn = document.getElementById("open-settings-btn");
 
   const tabMemo = document.getElementById("tab-memo");
   const tabTasks = document.getElementById("tab-tasks");
@@ -561,27 +559,6 @@ function initMainPage() {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       entryForm?.requestSubmit();
-    }
-  });
-
-  openSettingsBtn?.addEventListener("click", async () => {
-    const windows = await getAllWebviewWindows();
-    const settingsWin = windows.find(w => w.label === "settings");
-    if (settingsWin) {
-      await settingsWin.show();
-      await settingsWin.setFocus();
-    } else {
-      try {
-        new WebviewWindow("settings", {
-          url: "index.html#settings",
-          title: "Settings",
-          width: 450,
-          height: 500,
-          alwaysOnTop: true,
-        });
-      } catch (err) {
-        console.error("Failed to open settings window:", err);
-      }
     }
   });
 
