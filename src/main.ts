@@ -32,7 +32,7 @@ async function executeObsidianCommand(args: string[]) {
   } finally {
     setTimeout(() => {
       isExecutingCommand = false;
-    }, 100);
+    }, 500);
   }
 }
 

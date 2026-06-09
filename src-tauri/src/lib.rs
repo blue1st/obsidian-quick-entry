@@ -61,22 +61,42 @@ fn execute_obsidian_command(args: Vec<String>) -> Result<CommandOutput, String> 
 
 #[tauri::command]
 fn is_obsidian_running() -> bool {
-    let output = std::process::Command::new("pgrep")
-        .args(&["-x", "Obsidian"])
-        .output();
-    if let Ok(out) = output {
-        if out.status.success() {
-            return true;
+    #[cfg(target_os = "windows")]
+    {
+        let output = std::process::Command::new("tasklist")
+            .args(&["/FI", "IMAGENAME eq Obsidian.exe"])
+            .output();
+        if let Ok(out) = output {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            return stdout.contains("Obsidian.exe");
         }
-    }
-    
-    let output2 = std::process::Command::new("pgrep")
-        .args(&["-x", "obsidian"])
-        .output();
-    if let Ok(out2) = output2 {
-        out2.status.success()
-    } else {
         false
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let pgrep_cmd = if std::path::Path::new("/usr/bin/pgrep").exists() {
+            "/usr/bin/pgrep"
+        } else {
+            "pgrep"
+        };
+
+        let output = std::process::Command::new(pgrep_cmd)
+            .args(&["-x", "Obsidian"])
+            .output();
+        if let Ok(out) = output {
+            if out.status.success() {
+                return true;
+            }
+        }
+        
+        let output2 = std::process::Command::new(pgrep_cmd)
+            .args(&["-x", "obsidian"])
+            .output();
+        if let Ok(out2) = output2 {
+            out2.status.success()
+        } else {
+            false
+        }
     }
 }
 
@@ -155,3 +175,4 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
