@@ -42,6 +42,11 @@ html, body {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   transition: all 0.2s ease;
   position: relative;
+  cursor: grab;
+}
+
+.container:active {
+  cursor: grabbing;
 }
 
 .container:focus-within {
