@@ -6,6 +6,26 @@ import { enable as enableAutostart, isEnabled as isAutostartEnabled, disable as 
 const errorContainer = document.getElementById("error-container");
 const errorMessage = document.getElementById("error-message");
 
+let currentTab: "memo" | "tasks" = "memo";
+
+function parseJsonOutput(stdout: string): any {
+  const normalized = stdout.toLowerCase();
+  if (normalized.includes("no tasks found") || normalized.includes("not found")) {
+    return [];
+  }
+  const startIdx = stdout.indexOf("[");
+  const endIdx = stdout.lastIndexOf("]");
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    const jsonStr = stdout.substring(startIdx, endIdx + 1);
+    return JSON.parse(jsonStr);
+  }
+  throw new Error("No JSON array found in CLI output.");
+}
+
+function cleanTaskText(text: string): string {
+  return text.replace(/^-\s*\[.\]\s*/, "");
+}
+
 async function checkObsidianCli() {
   try {
     const cmd = Command.create("obsidian", ["--version"]);
@@ -95,6 +115,22 @@ function initMainPage() {
   const targetSelect = document.getElementById("target-select") as HTMLSelectElement;
   const openSettingsBtn = document.getElementById("open-settings-btn");
 
+  const tabMemo = document.getElementById("tab-memo");
+  const tabTasks = document.getElementById("tab-tasks");
+  const headingControls = document.getElementById("heading-controls");
+  const taskViewContainer = document.getElementById("task-view-container");
+  const taskList = document.getElementById("task-list") as HTMLUListElement;
+  const taskLoading = document.getElementById("task-loading");
+  const taskEmpty = document.getElementById("task-empty");
+  const footerSaveHint = document.getElementById("footer-save-hint");
+
+  // Memo Task Drafting elements
+  const toggleMemoTaskBtn = document.getElementById("toggle-memo-task-btn") as HTMLButtonElement;
+  const memoTaskInputContainer = document.getElementById("memo-task-input-container");
+  const memoTaskInput = document.getElementById("memo-task-input") as HTMLInputElement;
+
+  let isMemoTaskHelperVisible = false;
+
   // Load target files and populate dropdown
   function populateDropdown() {
     if (!targetSelect) return;
@@ -121,8 +157,214 @@ function initMainPage() {
 
   populateDropdown();
 
+  async function fetchTasks() {
+    if (!taskList || !taskLoading || !taskEmpty) return;
+    
+    hideError();
+    taskLoading.classList.remove("hidden");
+    taskEmpty.classList.add("hidden");
+    taskList.innerHTML = "";
+    
+    try {
+      const args: string[] = [];
+      const currentVault = localStorage.getItem("obsidian-vault") || "";
+      if (currentVault) {
+        args.push(`vault=${currentVault}`);
+      }
+      args.push("tasks");
+      
+      const destination = targetSelect ? targetSelect.value : "daily";
+      if (destination.startsWith("file:")) {
+        const fileName = destination.substring(5);
+        args.push(`file=${fileName}`);
+      } else {
+        args.push("daily");
+      }
+      args.push("format=json");
+      
+      const cmd = Command.create("obsidian", args);
+      const output = await cmd.execute();
+      
+      if (output.code !== 0) {
+        const errorMsg = output.stderr.trim() || output.stdout.trim() || `Exit code ${output.code}`;
+        showError("Failed to fetch tasks: " + errorMsg);
+        return;
+      }
+      
+      const tasks = parseJsonOutput(output.stdout);
+      if (!tasks || tasks.length === 0) {
+        taskEmpty.classList.remove("hidden");
+        return;
+      }
+      
+      tasks.forEach((task: any) => {
+        const li = document.createElement("li");
+        li.className = "task-item";
+        
+        const isDone = task.status.trim().toLowerCase() === "x";
+        if (isDone) {
+          li.classList.add("done");
+        }
+        
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "task-checkbox";
+        checkbox.checked = isDone;
+        
+        const textSpan = document.createElement("span");
+        textSpan.className = "task-text";
+        textSpan.textContent = cleanTaskText(task.text);
+        
+        const handleToggle = async (e: Event) => {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const nextCheckedState = !checkbox.checked;
+          checkbox.checked = nextCheckedState;
+          if (nextCheckedState) {
+            li.classList.add("done");
+          } else {
+            li.classList.remove("done");
+          }
+          
+          checkbox.disabled = true;
+          textSpan.style.pointerEvents = "none";
+          
+          await toggleTask(task);
+        };
+        
+        checkbox.addEventListener("change", handleToggle);
+        textSpan.addEventListener("click", handleToggle);
+        
+        li.appendChild(checkbox);
+        li.appendChild(textSpan);
+        taskList.appendChild(li);
+      });
+    } catch (err) {
+      showError("Failed to fetch tasks: " + err);
+    } finally {
+      taskLoading.classList.add("hidden");
+    }
+  }
+
+  async function toggleTask(task: any) {
+    try {
+      const args: string[] = [];
+      const currentVault = localStorage.getItem("obsidian-vault") || "";
+      if (currentVault) {
+        args.push(`vault=${currentVault}`);
+      }
+      args.push("task");
+      args.push(`path=${task.file}`);
+      args.push(`line=${task.line}`);
+      args.push("toggle");
+      
+      const cmd = Command.create("obsidian", args);
+      const output = await cmd.execute();
+      
+      if (output.code !== 0) {
+        const errorMsg = output.stderr.trim() || output.stdout.trim() || `Exit code ${output.code}`;
+        showError("Failed to update task status: " + errorMsg);
+      }
+      
+      await fetchTasks();
+    } catch (err) {
+      showError("Failed to execute task update: " + err);
+    }
+  }
+
+  function toggleMemoTaskHelper() {
+    isMemoTaskHelperVisible = !isMemoTaskHelperVisible;
+    if (isMemoTaskHelperVisible) {
+      memoTaskInputContainer?.classList.remove("hidden");
+      toggleMemoTaskBtn?.classList.add("active");
+      memoTaskInput?.focus();
+    } else {
+      memoTaskInputContainer?.classList.add("hidden");
+      toggleMemoTaskBtn?.classList.remove("active");
+      entryInput?.focus();
+    }
+  }
+
+  function insertTaskIntoMemo(taskText: string) {
+    if (!entryInput) return;
+    
+    const startPos = entryInput.selectionStart;
+    const endPos = entryInput.selectionEnd;
+    const text = entryInput.value;
+    
+    const insertedText = `- [ ] ${taskText}\n`;
+    entryInput.value = text.substring(0, startPos) + insertedText + text.substring(endPos);
+    
+    const newCursorPos = startPos + insertedText.length;
+    entryInput.setSelectionRange(newCursorPos, newCursorPos);
+    
+    memoTaskInput?.focus();
+  }
+
+  toggleMemoTaskBtn?.addEventListener("click", () => {
+    toggleMemoTaskHelper();
+  });
+
+  memoTaskInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const val = memoTaskInput.value.trim();
+      if (val) {
+        insertTaskIntoMemo(val);
+        memoTaskInput.value = "";
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      toggleMemoTaskHelper();
+    }
+  });
+
+  function switchTab(tab: "memo" | "tasks") {
+    currentTab = tab;
+    if (tab === "memo") {
+      tabMemo?.classList.add("active");
+      tabTasks?.classList.remove("active");
+      
+      headingControls?.classList.remove("hidden");
+      toggleMemoTaskBtn?.classList.remove("hidden");
+      entryForm?.classList.remove("hidden");
+      taskViewContainer?.classList.add("hidden");
+      
+      if (footerSaveHint) {
+        footerSaveHint.innerHTML = "Press <strong>⌘Enter</strong> to save";
+      }
+      
+      if (isMemoTaskHelperVisible) {
+        memoTaskInput?.focus();
+      } else {
+        entryInput?.focus();
+      }
+    } else {
+      tabMemo?.classList.remove("active");
+      tabTasks?.classList.add("active");
+      
+      headingControls?.classList.add("hidden");
+      toggleMemoTaskBtn?.classList.add("hidden");
+      entryForm?.classList.add("hidden");
+      taskViewContainer?.classList.remove("hidden");
+      
+      if (footerSaveHint) {
+        footerSaveHint.innerHTML = "Task completion status list";
+      }
+      
+      fetchTasks();
+    }
+  }
+
+  tabMemo?.addEventListener("click", () => switchTab("memo"));
+  tabTasks?.addEventListener("click", () => switchTab("tasks"));
+
   targetSelect?.addEventListener("change", () => {
     localStorage.setItem("obsidian-last-selected-destination", targetSelect.value);
+    if (currentTab === "tasks") {
+      fetchTasks();
+    }
   });
 
   const customHeadingToggle = document.getElementById("custom-heading-toggle") as HTMLInputElement;
@@ -191,6 +433,13 @@ function initMainPage() {
       } catch (err) {
         console.error("Failed to open settings window:", err);
       }
+    }
+  });
+
+  // Focus listener to refresh tasks when tray app gains focus
+  getCurrentWindow().listen('tauri://focus', async () => {
+    if (currentTab === "tasks") {
+      await fetchTasks();
     }
   });
 

@@ -17,7 +17,7 @@
         "label": "main",
         "title": "Obsidian Quick Entry",
         "width": 600,
-        "height": 250,
+        "height": 400,
         "visible": false,
         "decorations": false,
         "transparent": true,
