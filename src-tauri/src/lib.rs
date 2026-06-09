@@ -8,13 +8,8 @@ struct CliTypeInfo {
     needs_shell: bool,
 }
 
-#[tauri::command]
-fn get_obsidian_cli_info() -> CliTypeInfo {
-    let path_env = match std::env::var_os("PATH") {
-        Some(path) => path,
-        None => return CliTypeInfo { exists: false, needs_shell: false },
-    };
-    
+fn resolve_obsidian_cli() -> Option<(std::path::PathBuf, bool)> {
+    let path_env = std::env::var_os("PATH")?;
     let paths = std::env::split_paths(&path_env);
     
     for path in paths {
@@ -25,7 +20,7 @@ fn get_obsidian_cli_info() -> CliTypeInfo {
             for ext in &direct_exts {
                 let file_path = path.join(format!("obsidian.{}", ext));
                 if file_path.is_file() {
-                    return CliTypeInfo { exists: true, needs_shell: false };
+                    return Some((file_path, false));
                 }
             }
             
@@ -34,7 +29,7 @@ fn get_obsidian_cli_info() -> CliTypeInfo {
             for ext in &shell_exts {
                 let file_path = path.join(format!("obsidian.{}", ext));
                 if file_path.is_file() {
-                    return CliTypeInfo { exists: true, needs_shell: true };
+                    return Some((file_path, true));
                 }
             }
         }
@@ -45,13 +40,62 @@ fn get_obsidian_cli_info() -> CliTypeInfo {
             for name in &file_names {
                 let file_path = path.join(name);
                 if file_path.is_file() {
-                    return CliTypeInfo { exists: true, needs_shell: false };
+                    return Some((file_path, false));
                 }
             }
         }
     }
-    
-    CliTypeInfo { exists: false, needs_shell: false }
+    None
+}
+
+#[derive(serde::Serialize)]
+struct CommandOutput {
+    code: i32,
+    stdout: String,
+    stderr: String,
+}
+
+#[tauri::command]
+fn get_obsidian_cli_info() -> CliTypeInfo {
+    match resolve_obsidian_cli() {
+        Some((_, needs_shell)) => CliTypeInfo { exists: true, needs_shell },
+        None => CliTypeInfo { exists: false, needs_shell: false },
+    }
+}
+
+#[tauri::command]
+fn execute_obsidian_command(args: Vec<String>) -> Result<CommandOutput, String> {
+    let (program, needs_shell) = resolve_obsidian_cli()
+        .ok_or_else(|| "Obsidian CLI not found in PATH".to_string())?;
+
+    let mut cmd = if needs_shell {
+        let mut c = std::process::Command::new("cmd");
+        c.arg("/c").arg(program);
+        c
+    } else {
+        std::process::Command::new(program)
+    };
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW = 0x08000000
+        cmd.creation_flags(0x08000000);
+    }
+
+    let output = cmd.args(&args)
+        .output()
+        .map_err(|e| format!("Failed to execute obsidian command: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let code = output.status.code().unwrap_or(-1);
+
+    Ok(CommandOutput {
+        code,
+        stdout,
+        stderr,
+    })
 }
 
 #[tauri::command]
@@ -114,7 +158,11 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_obsidian_cli_info, is_obsidian_running])
+        .invoke_handler(tauri::generate_handler![
+            get_obsidian_cli_info,
+            execute_obsidian_command,
+            is_obsidian_running
+        ])
         .setup(|app| {
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&quit_i])?;
