@@ -99,6 +99,26 @@ function cleanObsidianOutput(output: string): string {
   return cleanLines.join("\n").trim();
 }
 
+function parseJsonOutput(stdout: string): any {
+  const cleaned = cleanObsidianOutput(stdout);
+  if (!cleaned) {
+    return [];
+  }
+  
+  const normalized = cleaned.toLowerCase();
+  if (normalized.includes("no tasks found") || normalized.includes("not found")) {
+    return [];
+  }
+  
+  const startIdx = cleaned.indexOf("[");
+  const endIdx = cleaned.lastIndexOf("]");
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    const jsonStr = cleaned.substring(startIdx, endIdx + 1);
+    return JSON.parse(jsonStr);
+  }
+  
+  throw new Error("No JSON array found in CLI output: " + stdout);
+}
 
 function cleanTaskText(text: string): string {
   return text.replace(/^-\s*\[.\]\s*/, "");
@@ -147,45 +167,67 @@ async function appendToDailyNote(text: string) {
     const destination = targetSelect ? targetSelect.value : "daily";
     const currentVault = localStorage.getItem("obsidian-vault") || "";
     
-    const relativePath = await resolveRelativePath(destination);
-    
-    let fileContent = "";
-    let fileExists = true;
-    try {
-      fileContent = await invoke<string>("read_vault_file", {
-        vaultName: currentVault,
-        relativePath: relativePath
-      });
-    } catch (err) {
-      if (String(err).includes("File not found")) {
-        fileExists = false;
-      } else {
-        throw err;
+    if (isWindows) {
+      const relativePath = await resolveRelativePath(destination);
+      let fileContent = "";
+      let fileExists = true;
+      try {
+        fileContent = await invoke<string>("read_vault_file", {
+          vaultName: currentVault,
+          relativePath: relativePath
+        });
+      } catch (err) {
+        if (String(err).includes("File not found")) {
+          fileExists = false;
+        } else {
+          throw err;
+        }
       }
-    }
-    
-    let newContent = "";
-    if (!fileExists) {
-      newContent = formattedText.trimStart();
-    } else {
-      const hasTrailingNewline = fileContent.endsWith("\n");
-      const hasTrailingDoubleNewline = fileContent.endsWith("\n\n") || fileContent.endsWith("\r\n\r\n");
       
-      if (hasTrailingDoubleNewline) {
-        newContent = fileContent + formattedText.trimStart();
-      } else if (hasTrailingNewline) {
-        newContent = fileContent + "\n" + formattedText.trimStart();
+      let newContent = "";
+      if (!fileExists) {
+        newContent = formattedText.trimStart();
       } else {
-        newContent = fileContent + "\n\n" + formattedText.trimStart();
+        const hasTrailingNewline = fileContent.endsWith("\n");
+        const hasTrailingDoubleNewline = fileContent.endsWith("\n\n") || fileContent.endsWith("\r\n\r\n");
+        
+        if (hasTrailingDoubleNewline) {
+          newContent = fileContent + formattedText.trimStart();
+        } else if (hasTrailingNewline) {
+          newContent = fileContent + "\n" + formattedText.trimStart();
+        } else {
+          newContent = fileContent + "\n\n" + formattedText.trimStart();
+        }
+      }
+      
+      console.log("Writing directly to note path:", relativePath);
+      await invoke("write_vault_file", {
+        vaultName: currentVault,
+        relativePath: relativePath,
+        content: newContent
+      });
+    } else {
+      const args: string[] = [];
+      if (currentVault) {
+        args.push(`vault=${currentVault}`);
+      }
+      if (destination.startsWith("file:")) {
+        const fileName = destination.substring(5);
+        args.push("append");
+        args.push(`file=${fileName}`);
+        args.push(`content=${formattedText}`);
+      } else {
+        args.push("daily:append");
+        args.push(`content=${formattedText}`);
+      }
+      
+      console.log("Executing Obsidian CLI append command:", args);
+      const output = await executeObsidianCommand(args);
+      const cleanStderr = cleanObsidianOutput(output.stderr);
+      if (output.code !== 0) {
+        throw new Error(cleanStderr || output.stdout.trim() || `Exit code ${output.code}`);
       }
     }
-    
-    console.log("Writing directly to note path:", relativePath);
-    await invoke("write_vault_file", {
-      vaultName: currentVault,
-      relativePath: relativePath,
-      content: newContent
-    });
     
     const entryInput = document.getElementById("entry-input") as HTMLTextAreaElement;
     if (entryInput) {
@@ -194,7 +236,7 @@ async function appendToDailyNote(text: string) {
     const currentWindow = getCurrentWindow();
     await currentWindow.hide();
   } catch (err) {
-    console.error("Failed to append to daily note directly:", err);
+    console.error("Failed to append note:", err);
     showError("Failed to append note: " + err);
   }
 }
@@ -265,37 +307,92 @@ function initMainPage() {
     
     try {
       const destination = targetSelect ? targetSelect.value : "daily";
-      const relativePath = await resolveRelativePath(destination);
       const currentVault = localStorage.getItem("obsidian-vault") || "";
+      let tasks: any[] = [];
       
-      let fileContent = "";
-      try {
-        fileContent = await invoke<string>("read_vault_file", {
-          vaultName: currentVault,
-          relativePath: relativePath
-        });
-      } catch (err) {
-        if (String(err).includes("File not found")) {
+      if (isWindows) {
+        const relativePath = await resolveRelativePath(destination);
+        let fileContent = "";
+        try {
+          fileContent = await invoke<string>("read_vault_file", {
+            vaultName: currentVault,
+            relativePath: relativePath
+          });
+        } catch (err) {
+          if (String(err).includes("File not found")) {
+            taskEmpty.classList.remove("hidden");
+            return;
+          }
+          showError("Failed to read file: " + err);
+          return;
+        }
+        
+        const lines = fileContent.split(/\r?\n/);
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const match = line.match(/^\s*-\s*\[(.)\]\s*(.*)/);
+          if (match) {
+            tasks.push({
+              status: match[1],
+              text: line.trim(),
+              file: relativePath,
+              line: String(i + 1)
+            });
+          }
+        }
+      } else {
+        const readArgs: string[] = [];
+        if (currentVault) {
+          readArgs.push(`vault=${currentVault}`);
+        }
+        if (destination.startsWith("file:")) {
+          const fileName = destination.substring(5);
+          readArgs.push("read");
+          readArgs.push(`file=${fileName}`);
+        } else {
+          readArgs.push("daily:read");
+        }
+        
+        const readOutput = await executeObsidianCommand(readArgs);
+        const cleanReadStderr = cleanObsidianOutput(readOutput.stderr);
+        if (readOutput.code !== 0) {
+          const errorMsg = cleanReadStderr || readOutput.stdout.trim() || "";
+          if (errorMsg.toLowerCase().includes("not found") || errorMsg.toLowerCase().includes("does not exist") || !errorMsg) {
+            taskEmpty.classList.remove("hidden");
+            return;
+          }
+          showError("Failed to verify note existence: " + errorMsg);
+          return;
+        }
+        
+        const noteContent = readOutput.stdout;
+        const hasTasks = /^\s*-\s*\[.\]/m.test(noteContent);
+        if (!hasTasks) {
           taskEmpty.classList.remove("hidden");
           return;
         }
-        showError("Failed to read file: " + err);
-        return;
-      }
-      
-      const lines = fileContent.split(/\r?\n/);
-      const tasks: any[] = [];
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const match = line.match(/^\s*-\s*\[(.)\]\s*(.*)/);
-        if (match) {
-          tasks.push({
-            status: match[1],
-            text: line.trim(),
-            file: relativePath,
-            line: String(i + 1)
-          });
+        
+        const args: string[] = [];
+        if (currentVault) {
+          args.push(`vault=${currentVault}`);
         }
+        args.push("tasks");
+        if (destination.startsWith("file:")) {
+          const fileName = destination.substring(5);
+          args.push(`file=${fileName}`);
+        } else {
+          args.push("daily");
+        }
+        args.push("format=json");
+        
+        const output = await executeObsidianCommand(args);
+        const cleanStderr = cleanObsidianOutput(output.stderr);
+        if (output.code !== 0) {
+          showError("Failed to fetch tasks: " + (cleanStderr || output.stdout.trim()));
+          return;
+        }
+        
+        tasks = parseJsonOutput(output.stdout);
       }
       
       if (tasks.length === 0) {
@@ -356,28 +453,46 @@ function initMainPage() {
   async function toggleTask(task: any) {
     try {
       const currentVault = localStorage.getItem("obsidian-vault") || "";
-      const fileContent = await invoke<string>("read_vault_file", {
-        vaultName: currentVault,
-        relativePath: task.file
-      });
       
-      const lines = fileContent.split(/\r?\n/);
-      const lineIndex = parseInt(task.line) - 1;
-      
-      if (lineIndex >= 0 && lineIndex < lines.length) {
-        const line = lines[lineIndex];
-        const match = line.match(/^(\s*-\s*\[)(.)(\]\s*.*)/);
-        if (match) {
-          const currentStatus = match[2];
-          const newStatus = currentStatus === " " ? "x" : " ";
-          lines[lineIndex] = `${match[1]}${newStatus}${match[3]}`;
-          
-          const newContent = lines.join("\n");
-          await invoke("write_vault_file", {
-            vaultName: currentVault,
-            relativePath: task.file,
-            content: newContent
-          });
+      if (isWindows) {
+        const fileContent = await invoke<string>("read_vault_file", {
+          vaultName: currentVault,
+          relativePath: task.file
+        });
+        
+        const lines = fileContent.split(/\r?\n/);
+        const lineIndex = parseInt(task.line) - 1;
+        
+        if (lineIndex >= 0 && lineIndex < lines.length) {
+          const line = lines[lineIndex];
+          const match = line.match(/^(\s*-\s*\[)(.)(\]\s*.*)/);
+          if (match) {
+            const currentStatus = match[2];
+            const newStatus = currentStatus === " " ? "x" : " ";
+            lines[lineIndex] = `${match[1]}${newStatus}${match[3]}`;
+            
+            const newContent = lines.join("\n");
+            await invoke("write_vault_file", {
+              vaultName: currentVault,
+              relativePath: task.file,
+              content: newContent
+            });
+          }
+        }
+      } else {
+        const args: string[] = [];
+        if (currentVault) {
+          args.push(`vault=${currentVault}`);
+        }
+        args.push("task");
+        args.push(`path=${task.file}`);
+        args.push(`line=${task.line}`);
+        args.push("toggle");
+        
+        const output = await executeObsidianCommand(args);
+        const cleanStderr = cleanObsidianOutput(output.stderr);
+        if (output.code !== 0) {
+          throw new Error(cleanStderr || output.stdout.trim() || `Exit code ${output.code}`);
         }
       }
       
@@ -429,15 +544,42 @@ function initMainPage() {
     drawerContent.textContent = "";
     
     try {
-      const relativePath = await resolveRelativePath(destination);
       const currentVault = localStorage.getItem("obsidian-vault") || "";
       
-      const fileContent = await invoke<string>("read_vault_file", {
-        vaultName: currentVault,
-        relativePath: relativePath
-      });
-      
-      drawerContent.textContent = fileContent || "(Empty Note)";
+      if (isWindows) {
+        const relativePath = await resolveRelativePath(destination);
+        const fileContent = await invoke<string>("read_vault_file", {
+          vaultName: currentVault,
+          relativePath: relativePath
+        });
+        drawerContent.textContent = fileContent || "(Empty Note)";
+      } else {
+        const args: string[] = [];
+        if (currentVault) {
+          args.push(`vault=${currentVault}`);
+        }
+        if (destination.startsWith("file:")) {
+          const fileName = destination.substring(5);
+          args.push("read");
+          args.push(`file=${fileName}`);
+        } else {
+          args.push("daily:read");
+        }
+        
+        const output = await executeObsidianCommand(args);
+        const cleanStderr = cleanObsidianOutput(output.stderr);
+        if (output.code !== 0) {
+          const errorMsg = cleanStderr || output.stdout.trim() || `Exit code ${output.code}`;
+          if (errorMsg.toLowerCase().includes("not found")) {
+            drawerContent.textContent = "Note is empty or has not been created yet.";
+          } else {
+            drawerContent.textContent = "Error reading note: " + errorMsg;
+          }
+        } else {
+          const cleanedText = cleanObsidianOutput(output.stdout);
+          drawerContent.textContent = cleanedText || "(Empty Note)";
+        }
+      }
       drawerContent.classList.remove("hidden");
     } catch (err) {
       if (String(err).includes("File not found")) {
