@@ -121,11 +121,14 @@ async function appendToDailyNote(text: string) {
     
     // On Windows, the Obsidian CLI may return exit code -1 (255) even on success.
     // If the exit code is non-zero but stderr is empty on Windows, we treat it as success.
-    const isSuccess = output.code === 0 || (isWindows && output.code === -1 && !output.stderr.trim());
+    const isSuccess = output.code === 0;
 
     if (!isSuccess) {
-      const errorMsg = output.stderr.trim() || output.stdout.trim() || `Exit code ${output.code}`;
-      showError("Error appending to Obsidian: " + errorMsg);
+      const details = [];
+      if (output.stdout.trim()) details.push(`Stdout: ${output.stdout.trim()}`);
+      if (output.stderr.trim()) details.push(`Stderr: ${output.stderr.trim()}`);
+      details.push(`Exit code: ${output.code}`);
+      showError("Error appending to Obsidian:\n" + details.join("\n"));
     } else {
       const entryInput = document.getElementById("entry-input") as HTMLTextAreaElement;
       if (entryInput) {
