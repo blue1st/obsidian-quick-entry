@@ -8,9 +8,23 @@ const errorMessage = document.getElementById("error-message");
 
 const isWindows = navigator.userAgent.toLowerCase().includes("win");
 let ignoreNextBlur = false;
+let isExecutingCommand = false;
 
 function createObsidianCommand(args: string[]) {
   return Command.create("obsidian", args);
+}
+
+async function executeObsidianCommand(args: string[]) {
+  const cmd = createObsidianCommand(args);
+  isExecutingCommand = true;
+  try {
+    const output = await cmd.execute();
+    return output;
+  } finally {
+    setTimeout(() => {
+      isExecutingCommand = false;
+    }, 100);
+  }
 }
 
 let currentTab: "memo" | "tasks" = "memo";
@@ -54,8 +68,7 @@ function cleanTaskText(text: string): string {
 
 async function checkObsidianCli() {
   try {
-    const cmd = createObsidianCommand(["--version"]);
-    const output = await cmd.execute();
+    const output = await executeObsidianCommand(["--version"]);
     if (output.code !== 0) {
       showError("Obsidian CLI not found. Please ensure it is installed and in your PATH.");
     }
@@ -115,9 +128,8 @@ async function appendToDailyNote(text: string) {
       args.push(`content=${contentArg}`);
     }
     
-    const cmd = createObsidianCommand(args);
     console.log("Executing Obsidian CLI command with args:", args);
-    const output = await cmd.execute();
+    const output = await executeObsidianCommand(args);
     console.log("Obsidian CLI command output:", {
       code: output.code,
       stdout: output.stdout,
@@ -214,14 +226,60 @@ function initMainPage() {
     taskList.innerHTML = "";
     
     try {
-      const args: string[] = [];
+      const destination = targetSelect ? targetSelect.value : "daily";
+      
+      // Check if the note exists first by attempting to read it.
+      // This prevents Obsidian from opening/creating today's daily note GUI if it doesn't exist yet.
+      const readArgs: string[] = [];
       const currentVault = localStorage.getItem("obsidian-vault") || "";
+      if (currentVault) {
+        readArgs.push(`vault=${currentVault}`);
+      }
+      if (destination.startsWith("file:")) {
+        const fileName = destination.substring(5);
+        readArgs.push("read");
+        readArgs.push(`file=${fileName}`);
+      } else {
+        readArgs.push("daily:read");
+      }
+      
+      console.log("Checking if note exists before fetching tasks:", readArgs);
+      const readOutput = await executeObsidianCommand(readArgs);
+      const cleanReadStderr = cleanObsidianOutput(readOutput.stderr);
+      const readSuccess = readOutput.code === 0 || (isWindows && readOutput.code === -1 && !cleanReadStderr);
+      
+      if (!readSuccess) {
+        const errorMsg = cleanReadStderr || readOutput.stdout.trim() || "";
+        // If note is not found or does not exist, it means there are no tasks
+        if (
+          errorMsg.toLowerCase().includes("not found") ||
+          errorMsg.toLowerCase().includes("does not exist") ||
+          (readOutput.code !== 0 && !errorMsg)
+        ) {
+          taskEmpty.classList.remove("hidden");
+          return;
+        }
+        // For other errors, show them
+        showError("Failed to verify note existence: " + errorMsg);
+        return;
+      }
+      
+      // Parse content in JS to see if there are any tasks.
+      // This avoids executing 'obsidian tasks' (which can trigger notice popups in Obsidian GUI) if the note has no tasks.
+      const noteContent = readOutput.stdout;
+      const hasTasks = /^\s*-\s*\[.\]/m.test(noteContent);
+      if (!hasTasks) {
+        console.log("No tasks found in note content (JS pre-check). Skipping CLI tasks command.");
+        taskEmpty.classList.remove("hidden");
+        return;
+      }
+
+      // If the note exists, retrieve the tasks
+      const args: string[] = [];
       if (currentVault) {
         args.push(`vault=${currentVault}`);
       }
       args.push("tasks");
-      
-      const destination = targetSelect ? targetSelect.value : "daily";
       if (destination.startsWith("file:")) {
         const fileName = destination.substring(5);
         args.push(`file=${fileName}`);
@@ -230,9 +288,8 @@ function initMainPage() {
       }
       args.push("format=json");
       
-      const cmd = createObsidianCommand(args);
       console.log("Executing Obsidian CLI command (fetchTasks) with args:", args);
-      const output = await cmd.execute();
+      const output = await executeObsidianCommand(args);
       console.log("Obsidian CLI command output (fetchTasks):", {
         code: output.code,
         stdout: output.stdout,
@@ -316,9 +373,8 @@ function initMainPage() {
       args.push(`line=${task.line}`);
       args.push("toggle");
       
-      const cmd = createObsidianCommand(args);
       console.log("Executing Obsidian CLI command (toggleTask) with args:", args);
-      const output = await cmd.execute();
+      const output = await executeObsidianCommand(args);
       console.log("Obsidian CLI command output (toggleTask):", {
         code: output.code,
         stdout: output.stdout,
@@ -395,9 +451,8 @@ function initMainPage() {
         args.push("daily:read");
       }
       
-      const cmd = createObsidianCommand(args);
       console.log("Executing Obsidian CLI command (openNoteViewer) with args:", args);
-      const output = await cmd.execute();
+      const output = await executeObsidianCommand(args);
       console.log("Obsidian CLI command output (openNoteViewer):", {
         code: output.code,
         stdout: output.stdout,
@@ -721,7 +776,7 @@ if (window.location.hash === "#settings") {
 
   // Hide window on blur
   getCurrentWindow().listen('tauri://blur', async () => {
-    if (ignoreNextBlur) {
+    if (ignoreNextBlur || isExecutingCommand) {
       ignoreNextBlur = false;
       return;
     }
