@@ -6,6 +6,8 @@ import { enable as enableAutostart, isEnabled as isAutostartEnabled, disable as 
 const errorContainer = document.getElementById("error-container");
 const errorMessage = document.getElementById("error-message");
 
+const isWindows = navigator.userAgent.toLowerCase().includes("win");
+
 let currentTab: "memo" | "tasks" = "memo";
 
 function cleanObsidianOutput(output: string): string {
@@ -96,7 +98,6 @@ async function appendToDailyNote(text: string) {
       args.push(`vault=${currentVault}`);
     }
 
-    const isWindows = navigator.userAgent.toLowerCase().includes("win");
     const contentArg = isWindows ? formattedText.replace(/\r?\n/g, "\\n") : formattedText;
 
     if (destination.startsWith("file:")) {
@@ -110,9 +111,19 @@ async function appendToDailyNote(text: string) {
     }
     
     const cmd = Command.create("obsidian", args);
+    console.log("Executing Obsidian CLI command with args:", args);
     const output = await cmd.execute();
+    console.log("Obsidian CLI command output:", {
+      code: output.code,
+      stdout: output.stdout,
+      stderr: output.stderr
+    });
     
-    if (output.code !== 0) {
+    // On Windows, the Obsidian CLI may return exit code -1 (255) even on success.
+    // If the exit code is non-zero but stderr is empty on Windows, we treat it as success.
+    const isSuccess = output.code === 0 || (isWindows && output.code === -1 && !output.stderr.trim());
+
+    if (!isSuccess) {
       const errorMsg = output.stderr.trim() || output.stdout.trim() || `Exit code ${output.code}`;
       showError("Error appending to Obsidian: " + errorMsg);
     } else {
@@ -124,6 +135,7 @@ async function appendToDailyNote(text: string) {
       await currentWindow.hide();
     }
   } catch (err) {
+    console.error("Failed to execute Obsidian CLI:", err);
     showError("Failed to execute Obsidian CLI: " + err);
   }
 }
@@ -210,9 +222,17 @@ function initMainPage() {
       args.push("format=json");
       
       const cmd = Command.create("obsidian", args);
+      console.log("Executing Obsidian CLI command (fetchTasks) with args:", args);
       const output = await cmd.execute();
+      console.log("Obsidian CLI command output (fetchTasks):", {
+        code: output.code,
+        stdout: output.stdout,
+        stderr: output.stderr
+      });
       
-      if (output.code !== 0) {
+      const isSuccess = output.code === 0 || (isWindows && output.code === -1 && !output.stderr.trim());
+
+      if (!isSuccess) {
         const errorMsg = output.stderr.trim() || output.stdout.trim() || `Exit code ${output.code}`;
         showError("Failed to fetch tasks: " + errorMsg);
         return;
@@ -287,9 +307,17 @@ function initMainPage() {
       args.push("toggle");
       
       const cmd = Command.create("obsidian", args);
+      console.log("Executing Obsidian CLI command (toggleTask) with args:", args);
       const output = await cmd.execute();
+      console.log("Obsidian CLI command output (toggleTask):", {
+        code: output.code,
+        stdout: output.stdout,
+        stderr: output.stderr
+      });
       
-      if (output.code !== 0) {
+      const isSuccess = output.code === 0 || (isWindows && output.code === -1 && !output.stderr.trim());
+
+      if (!isSuccess) {
         const errorMsg = output.stderr.trim() || output.stdout.trim() || `Exit code ${output.code}`;
         showError("Failed to update task status: " + errorMsg);
       }
@@ -357,9 +385,17 @@ function initMainPage() {
       }
       
       const cmd = Command.create("obsidian", args);
+      console.log("Executing Obsidian CLI command (openNoteViewer) with args:", args);
       const output = await cmd.execute();
+      console.log("Obsidian CLI command output (openNoteViewer):", {
+        code: output.code,
+        stdout: output.stdout,
+        stderr: output.stderr
+      });
       
-      if (output.code !== 0) {
+      const isSuccess = output.code === 0 || (isWindows && output.code === -1 && !output.stderr.trim());
+
+      if (!isSuccess) {
         const errorMsg = output.stderr.trim() || output.stdout.trim() || `Exit code ${output.code}`;
         if (errorMsg.toLowerCase().includes("not found")) {
           drawerContent.textContent = "Note is empty or has not been created yet.";
