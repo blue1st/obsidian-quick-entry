@@ -835,3 +835,23 @@ body.settings-page {
   opacity: 0.7;
   font-size: 0.85rem;
 }
+
+.right-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.version-label {
+  opacity: 0.4;
+  font-size: 0.75rem;
+  margin-right: 4px;
+  user-select: none;
+}
+
+.settings-version-label {
+  font-size: 0.85rem;
+  font-weight: normal;
+  opacity: 0.4;
+  margin-left: 8px;
+}

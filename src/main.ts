@@ -8,6 +8,14 @@ const errorMessage = document.getElementById("error-message");
 
 const isWindows = navigator.userAgent.toLowerCase().includes("win");
 
+function createObsidianCommand(args: string[]) {
+  if (isWindows) {
+    return Command.create("cmd", ["/c", "obsidian", ...args]);
+  } else {
+    return Command.create("obsidian", args);
+  }
+}
+
 let currentTab: "memo" | "tasks" = "memo";
 
 function cleanObsidianOutput(output: string): string {
@@ -49,7 +57,7 @@ function cleanTaskText(text: string): string {
 
 async function checkObsidianCli() {
   try {
-    const cmd = Command.create("obsidian", ["--version"]);
+    const cmd = createObsidianCommand(["--version"]);
     const output = await cmd.execute();
     if (output.code !== 0) {
       showError("Obsidian CLI not found. Please ensure it is installed and in your PATH.");
@@ -82,8 +90,8 @@ async function appendToDailyNote(text: string) {
       formattedText = `\n\n${customHeadingInput.value.trim()}\n\n${text}`;
     } else {
       const now = new Date();
-      const dateStr = now.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "-");
-      const timeStr = now.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+      const dateStr = now.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "-").replace(/[\u200E\u200F\u202A-\u202E]/g, "");
+      const timeStr = now.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }).replace(/[\u200E\u200F\u202A-\u202E]/g, "");
       formattedText = `\n\n## ${dateStr} ${timeStr}\n\n${text}`;
     }
     
@@ -110,7 +118,7 @@ async function appendToDailyNote(text: string) {
       args.push(`content=${contentArg}`);
     }
     
-    const cmd = Command.create("obsidian", args);
+    const cmd = createObsidianCommand(args);
     console.log("Executing Obsidian CLI command with args:", args);
     const output = await cmd.execute();
     console.log("Obsidian CLI command output:", {
@@ -224,7 +232,7 @@ function initMainPage() {
       }
       args.push("format=json");
       
-      const cmd = Command.create("obsidian", args);
+      const cmd = createObsidianCommand(args);
       console.log("Executing Obsidian CLI command (fetchTasks) with args:", args);
       const output = await cmd.execute();
       console.log("Obsidian CLI command output (fetchTasks):", {
@@ -309,7 +317,7 @@ function initMainPage() {
       args.push(`line=${task.line}`);
       args.push("toggle");
       
-      const cmd = Command.create("obsidian", args);
+      const cmd = createObsidianCommand(args);
       console.log("Executing Obsidian CLI command (toggleTask) with args:", args);
       const output = await cmd.execute();
       console.log("Obsidian CLI command output (toggleTask):", {
@@ -387,7 +395,7 @@ function initMainPage() {
         args.push("daily:read");
       }
       
-      const cmd = Command.create("obsidian", args);
+      const cmd = createObsidianCommand(args);
       console.log("Executing Obsidian CLI command (openNoteViewer) with args:", args);
       const output = await cmd.execute();
       console.log("Obsidian CLI command output (openNoteViewer):", {
@@ -716,3 +724,37 @@ if (window.location.hash === "#settings") {
 
   initMainPage();
 }
+
+// Initialize version labels using injected Vite metadata
+const appVersion = (import.meta as any).env.APP_VERSION || "0.1.16";
+const mainVersionLabel = document.getElementById("app-version-label");
+if (mainVersionLabel) {
+  mainVersionLabel.textContent = `v${appVersion}`;
+}
+const settingsVersionLabel = document.getElementById("settings-version-label");
+if (settingsVersionLabel) {
+  settingsVersionLabel.textContent = `v${appVersion}`;
+}
+
+// Programmatic window dragging fallback for frameless window
+const mainViewEl = document.getElementById("main-view");
+mainViewEl?.addEventListener("mousedown", (e) => {
+  if (e.button === 0) { // Left-click only
+    const target = e.target as HTMLElement;
+    // Don't drag if clicking interactive fields or panels
+    if (
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "BUTTON" ||
+      target.tagName === "SELECT" ||
+      target.closest("button") ||
+      target.closest(".clickable") ||
+      target.closest(".task-item") ||
+      target.closest(".icon-toggle-btn") ||
+      target.closest(".drawer")
+    ) {
+      return;
+    }
+    getCurrentWindow().startDragging();
+  }
+});
