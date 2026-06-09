@@ -8,18 +8,37 @@ const errorMessage = document.getElementById("error-message");
 
 let currentTab: "memo" | "tasks" = "memo";
 
+function cleanObsidianOutput(output: string): string {
+  const lines = output.split(/\r?\n/);
+  const cleanLines = lines.filter(line => {
+    const trimmed = line.trim();
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(trimmed)) return false;
+    if (trimmed.includes("Your Obsidian installer is out of date")) return false;
+    if (trimmed.includes("Please download the latest installer")) return false;
+    return true;
+  });
+  return cleanLines.join("\n").trim();
+}
+
 function parseJsonOutput(stdout: string): any {
-  const normalized = stdout.toLowerCase();
+  const cleaned = cleanObsidianOutput(stdout);
+  if (!cleaned) {
+    return [];
+  }
+  
+  const normalized = cleaned.toLowerCase();
   if (normalized.includes("no tasks found") || normalized.includes("not found")) {
     return [];
   }
-  const startIdx = stdout.indexOf("[");
-  const endIdx = stdout.lastIndexOf("]");
+  
+  const startIdx = cleaned.indexOf("[");
+  const endIdx = cleaned.lastIndexOf("]");
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    const jsonStr = stdout.substring(startIdx, endIdx + 1);
+    const jsonStr = cleaned.substring(startIdx, endIdx + 1);
     return JSON.parse(jsonStr);
   }
-  throw new Error("No JSON array found in CLI output.");
+  
+  throw new Error("No JSON array found in CLI output: " + stdout);
 }
 
 function cleanTaskText(text: string): string {
@@ -128,6 +147,14 @@ function initMainPage() {
   const toggleMemoTaskBtn = document.getElementById("toggle-memo-task-btn") as HTMLButtonElement;
   const memoTaskInputContainer = document.getElementById("memo-task-input-container");
   const memoTaskInput = document.getElementById("memo-task-input") as HTMLInputElement;
+
+  // Note Viewer elements
+  const viewNoteBtn = document.getElementById("view-note-btn");
+  const noteViewerDrawer = document.getElementById("note-viewer-drawer");
+  const closeDrawerBtn = document.getElementById("close-drawer-btn");
+  const drawerTitle = document.getElementById("drawer-title");
+  const drawerLoading = document.getElementById("drawer-loading");
+  const drawerContent = document.getElementById("drawer-content");
 
   let isMemoTaskHelperVisible = false;
 
@@ -302,6 +329,60 @@ function initMainPage() {
     memoTaskInput?.focus();
   }
 
+  async function openNoteViewer() {
+    if (!noteViewerDrawer || !drawerTitle || !drawerLoading || !drawerContent) return;
+    
+    const destination = targetSelect ? targetSelect.value : "daily";
+    const titleText = destination.startsWith("file:") ? destination.substring(5) : "Daily Note";
+    
+    drawerTitle.textContent = titleText;
+    noteViewerDrawer.classList.add("open");
+    drawerLoading.classList.remove("hidden");
+    drawerContent.classList.add("hidden");
+    drawerContent.textContent = "";
+    
+    try {
+      const args: string[] = [];
+      const currentVault = localStorage.getItem("obsidian-vault") || "";
+      if (currentVault) {
+        args.push(`vault=${currentVault}`);
+      }
+      
+      if (destination.startsWith("file:")) {
+        const fileName = destination.substring(5);
+        args.push("read");
+        args.push(`file=${fileName}`);
+      } else {
+        args.push("daily:read");
+      }
+      
+      const cmd = Command.create("obsidian", args);
+      const output = await cmd.execute();
+      
+      if (output.code !== 0) {
+        const errorMsg = output.stderr.trim() || output.stdout.trim() || `Exit code ${output.code}`;
+        if (errorMsg.toLowerCase().includes("not found")) {
+          drawerContent.textContent = "Note is empty or has not been created yet.";
+        } else {
+          drawerContent.textContent = "Error reading note: " + errorMsg;
+        }
+      } else {
+        const cleanedText = cleanObsidianOutput(output.stdout);
+        drawerContent.textContent = cleanedText || "(Empty Note)";
+      }
+      drawerContent.classList.remove("hidden");
+    } catch (err) {
+      drawerContent.textContent = "Failed to load note content: " + err;
+      drawerContent.classList.remove("hidden");
+    } finally {
+      drawerLoading.classList.add("hidden");
+    }
+  }
+
+  function closeNoteViewer() {
+    noteViewerDrawer?.classList.remove("open");
+  }
+
   toggleMemoTaskBtn?.addEventListener("click", () => {
     toggleMemoTaskHelper();
   });
@@ -320,6 +401,22 @@ function initMainPage() {
     }
   });
 
+  viewNoteBtn?.addEventListener("click", () => {
+    openNoteViewer();
+  });
+
+  closeDrawerBtn?.addEventListener("click", () => {
+    closeNoteViewer();
+  });
+
+  // Intercept escape key on window level to close drawer if open
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && noteViewerDrawer?.classList.contains("open")) {
+      e.stopPropagation();
+      closeNoteViewer();
+    }
+  }, true);
+
   function switchTab(tab: "memo" | "tasks") {
     currentTab = tab;
     if (tab === "memo") {
@@ -328,6 +425,7 @@ function initMainPage() {
       
       headingControls?.classList.remove("hidden");
       toggleMemoTaskBtn?.classList.remove("hidden");
+      viewNoteBtn?.classList.remove("hidden");
       entryForm?.classList.remove("hidden");
       taskViewContainer?.classList.add("hidden");
       
@@ -346,6 +444,7 @@ function initMainPage() {
       
       headingControls?.classList.add("hidden");
       toggleMemoTaskBtn?.classList.add("hidden");
+      viewNoteBtn?.classList.add("hidden");
       entryForm?.classList.add("hidden");
       taskViewContainer?.classList.remove("hidden");
       
