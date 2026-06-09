@@ -51,9 +51,6 @@ brew install --cask blue1st/taps/obsidian-quick-entry
     ```bash
     xattr -cr "/Applications/Obsidian Quick Entry.app"
     ```
-* **Windows**:
-  * 一般的なPC: `Obsidian.Quick.Entry_X.X.X_x64-setup.exe` (または `.msi`)
-  * ARM版 Windows: `Obsidian.Quick.Entry_X.X.X_arm64-setup.exe` (または `.msi`)
 * **Linux**:
   * 一般的なPC: `obsidian-quick-entry_X.X.X_amd64.deb`
   * ARM版 Linux: `obsidian-quick-entry_X.X.X_arm64.deb`
@@ -64,7 +61,7 @@ brew install --cask blue1st/taps/obsidian-quick-entry
 
 ウィジェット表示時に以下のショートカットを使用できます：
 
-* **`⌘ + Enter` (Windows/Linuxは `Ctrl + Enter`)**: メモを書き込み、ウィジェットを非表示にします。
+* **`⌘ + Enter` (Linuxは `Ctrl + Enter`)**: メモを書き込み、ウィジェットを非表示にします。
 * **`Escape`**: 入力内容を保持したまま、ウィジェットを非表示にします。
 
 ---
@@ -91,8 +88,6 @@ npm run tauri dev
 
 2. **自動ビルド & デプロイ (GitHub Actions)**:
    プッシュされたタグを検知して以下のアーキテクチャ向けのビルドが自動で走り、GitHubのドラフトリリースへ成果物が追加されます。完了後、Homebrew の定義ファイルも自動で書き換わります。
-   * macOS (Universal Binary)
-   * Windows x64
-   * Windows ARM64 (Native Runner)
-   * Linux x64
-   * Linux ARM64 (Native Runner)
+    * macOS (Universal Binary)
+    * Linux x64
+    * Linux ARM64 (Native Runner)
