@@ -2,11 +2,17 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::Manager;
 
+#[derive(serde::Serialize)]
+struct CliTypeInfo {
+    exists: bool,
+    needs_shell: bool,
+}
+
 #[tauri::command]
-fn check_obsidian_cli() -> bool {
+fn get_obsidian_cli_info() -> CliTypeInfo {
     let path_env = match std::env::var_os("PATH") {
         Some(path) => path,
-        None => return false,
+        None => return CliTypeInfo { exists: false, needs_shell: false },
     };
     
     let paths = std::env::split_paths(&path_env);
@@ -14,11 +20,21 @@ fn check_obsidian_cli() -> bool {
     for path in paths {
         #[cfg(target_os = "windows")]
         {
-            let exts = ["exe", "cmd", "bat", "com"];
-            for ext in &exts {
+            // First check direct executables
+            let direct_exts = ["com", "exe"];
+            for ext in &direct_exts {
                 let file_path = path.join(format!("obsidian.{}", ext));
                 if file_path.is_file() {
-                    return true;
+                    return CliTypeInfo { exists: true, needs_shell: false };
+                }
+            }
+            
+            // Then check shell scripts
+            let shell_exts = ["cmd", "bat"];
+            for ext in &shell_exts {
+                let file_path = path.join(format!("obsidian.{}", ext));
+                if file_path.is_file() {
+                    return CliTypeInfo { exists: true, needs_shell: true };
                 }
             }
         }
@@ -29,12 +45,50 @@ fn check_obsidian_cli() -> bool {
             for name in &file_names {
                 let file_path = path.join(name);
                 if file_path.is_file() {
-                    return true;
+                    return CliTypeInfo { exists: true, needs_shell: false };
                 }
             }
         }
     }
-    false
+    
+    CliTypeInfo { exists: false, needs_shell: false }
+}
+
+#[tauri::command]
+fn is_obsidian_running() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let output = std::process::Command::new("tasklist")
+            .args(&["/FI", "IMAGENAME eq Obsidian.exe", "/NH"])
+            .output();
+        if let Ok(out) = output {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            stdout.contains("Obsidian.exe")
+        } else {
+            false
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = std::process::Command::new("pgrep")
+            .args(&["-x", "Obsidian"])
+            .output();
+        if let Ok(out) = output {
+            if out.status.success() {
+                return true;
+            }
+        }
+        
+        let output2 = std::process::Command::new("pgrep")
+            .args(&["-x", "obsidian"])
+            .output();
+        if let Ok(out2) = output2 {
+            out2.status.success()
+        } else {
+            false
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -60,7 +114,7 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![check_obsidian_cli])
+        .invoke_handler(tauri::generate_handler![get_obsidian_cli_info, is_obsidian_running])
         .setup(|app| {
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&quit_i])?;

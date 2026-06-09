@@ -3,6 +3,7 @@ import { Command } from "@tauri-apps/plugin-shell";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow, getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
 import { enable as enableAutostart, isEnabled as isAutostartEnabled, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 const errorContainer = document.getElementById("error-container");
 const errorMessage = document.getElementById("error-message");
@@ -10,12 +11,32 @@ const errorMessage = document.getElementById("error-message");
 const isWindows = navigator.userAgent.toLowerCase().includes("win");
 let ignoreNextBlur = false;
 let isExecutingCommand = false;
+let cliNeedsShell = false;
 
 function createObsidianCommand(args: string[]) {
-  return Command.create("obsidian", args);
+  if (isWindows && cliNeedsShell) {
+    return Command.create("cmd", ["/c", "obsidian", ...args]);
+  } else {
+    return Command.create("obsidian", args);
+  }
+}
+
+async function ensureObsidianRunning() {
+  try {
+    const isRunning = await invoke<boolean>("is_obsidian_running");
+    if (!isRunning) {
+      console.log("Obsidian is not running. Launching cleanly via URI scheme...");
+      await openUrl("obsidian://open");
+      // Wait for Obsidian to initialize and open its IPC server
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  } catch (err) {
+    console.error("Failed to check or start Obsidian:", err);
+  }
 }
 
 async function executeObsidianCommand(args: string[]) {
+  await ensureObsidianRunning();
   const cmd = createObsidianCommand(args);
   isExecutingCommand = true;
   try {
@@ -69,10 +90,11 @@ function cleanTaskText(text: string): string {
 
 async function checkObsidianCli() {
   try {
-    const isInstalled = await invoke<boolean>("check_obsidian_cli");
-    if (!isInstalled) {
+    const cliInfo = await invoke<{ exists: boolean; needs_shell: boolean }>("get_obsidian_cli_info");
+    if (!cliInfo.exists) {
       showError("Obsidian CLI not found. Please ensure it is installed and in your PATH.");
     }
+    cliNeedsShell = cliInfo.needs_shell;
   } catch (err) {
     showError("Failed to verify Obsidian CLI: " + err);
   }
@@ -117,7 +139,7 @@ async function appendToDailyNote(text: string) {
       args.push(`vault=${currentVault}`);
     }
 
-    const contentArg = formattedText;
+    const contentArg = (isWindows && cliNeedsShell) ? formattedText.replace(/\r?\n/g, "\\n") : formattedText;
 
     if (destination.startsWith("file:")) {
       const fileName = destination.substring(5);
