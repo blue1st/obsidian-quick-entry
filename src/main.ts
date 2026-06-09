@@ -116,7 +116,7 @@ async function appendToDailyNote(text: string) {
       args.push(`vault=${currentVault}`);
     }
 
-    const contentArg = isWindows ? formattedText.replace(/\r?\n/g, "\\n") : formattedText;
+    const contentArg = formattedText;
 
     if (destination.startsWith("file:")) {
       const fileName = destination.substring(5);
