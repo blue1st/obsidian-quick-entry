@@ -329,6 +329,9 @@ function initMainPage() {
   }
 
   function handleSuggestKeyDown(e: KeyboardEvent): boolean {
+    if (e.isComposing) {
+      return false;
+    }
     if (!tagSuggestPopup || tagSuggestPopup.classList.contains("hidden") || filteredTags.length === 0) {
       return false;
     }
@@ -641,6 +644,9 @@ function initMainPage() {
   });
 
   memoTaskInput?.addEventListener("keydown", (e) => {
+    if (e.isComposing) {
+      return;
+    }
     if (handleSuggestKeyDown(e)) {
       return;
     }
