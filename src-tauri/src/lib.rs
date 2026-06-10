@@ -43,14 +43,43 @@ fn execute_obsidian_command(args: Vec<String>) -> Result<CommandOutput, String> 
     let program = resolve_obsidian_cli()
         .ok_or_else(|| "Obsidian CLI not found in PATH".to_string())?;
 
-    let output = std::process::Command::new(program)
-        .args(&args)
-        .output()
-        .map_err(|e| format!("Failed to execute obsidian command: {}", e))?;
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let count = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let file_id = format!("{}_{}", timestamp, count);
 
-    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    let code = output.status.code().unwrap_or(-1);
+    let temp_dir = std::env::temp_dir();
+    let stdout_path = temp_dir.join(format!("obsidian_stdout_{}.log", file_id));
+    let stderr_path = temp_dir.join(format!("obsidian_stderr_{}.log", file_id));
+
+    let stdout_file = std::fs::File::create(&stdout_path)
+        .map_err(|e| format!("Failed to create stdout temp file: {}", e))?;
+    let stderr_file = std::fs::File::create(&stderr_path)
+        .map_err(|e| format!("Failed to create stderr temp file: {}", e))?;
+
+    let mut child = std::process::Command::new(program)
+        .args(&args)
+        .stdout(stdout_file)
+        .stderr(stderr_file)
+        .spawn()
+        .map_err(|e| format!("Failed to spawn obsidian command: {}", e))?;
+
+    let status = child.wait()
+        .map_err(|e| format!("Failed to wait for obsidian command: {}", e))?;
+
+    let stdout = std::fs::read_to_string(&stdout_path)
+        .unwrap_or_else(|_| String::new());
+    let stderr = std::fs::read_to_string(&stderr_path)
+        .unwrap_or_else(|_| String::new());
+
+    // Clean up temporary files
+    let _ = std::fs::remove_file(&stdout_path);
+    let _ = std::fs::remove_file(&stderr_path);
+
+    let code = status.code().unwrap_or(-1);
 
     Ok(CommandOutput {
         code,
@@ -72,7 +101,7 @@ fn is_obsidian_running() -> bool {
         }
         false
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
         let pgrep_cmd = if std::path::Path::new("/usr/bin/pgrep").exists() {
             "/usr/bin/pgrep"
@@ -84,16 +113,24 @@ fn is_obsidian_running() -> bool {
             .args(&["-x", "Obsidian"])
             .output();
         if let Ok(out) = output {
-            if out.status.success() {
-                return true;
-            }
+            out.status.success()
+        } else {
+            false
         }
-        
-        let output2 = std::process::Command::new(pgrep_cmd)
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let pgrep_cmd = if std::path::Path::new("/usr/bin/pgrep").exists() {
+            "/usr/bin/pgrep"
+        } else {
+            "pgrep"
+        };
+
+        let output = std::process::Command::new(pgrep_cmd)
             .args(&["-x", "obsidian"])
             .output();
-        if let Ok(out2) = output2 {
-            out2.status.success()
+        if let Ok(out) = output {
+            out.status.success()
         } else {
             false
         }
