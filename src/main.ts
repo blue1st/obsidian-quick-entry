@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { enable as enableAutostart, isEnabled as isAutostartEnabled, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { register, unregisterAll } from "@tauri-apps/plugin-global-shortcut";
 
 const errorContainer = document.getElementById("error-container");
 const errorMessage = document.getElementById("error-message");
@@ -818,7 +819,39 @@ function initMainPage() {
     if (e.key === "obsidian-vault") {
       fetchTags();
     }
+    if (e.key === "obsidian-hotkey-enabled" || e.key === "obsidian-hotkey") {
+      setupGlobalShortcut();
+    }
   });
+
+  // Global Hotkey Setup
+  async function setupGlobalShortcut() {
+    try {
+      await unregisterAll();
+      const isEnabled = localStorage.getItem("obsidian-hotkey-enabled") !== "false";
+      const shortcutStr = localStorage.getItem("obsidian-hotkey") || "CommandOrControl+Shift+Space";
+      
+      if (isEnabled && shortcutStr) {
+        await register(shortcutStr, async (event) => {
+          if (event.state === "Pressed") {
+            const currentWindow = getCurrentWindow();
+            const isVisible = await currentWindow.isVisible();
+            if (isVisible) {
+              await currentWindow.hide();
+            } else {
+              await currentWindow.show();
+              await currentWindow.setFocus();
+            }
+          }
+        });
+        console.log(`Registered global hotkey: ${shortcutStr}`);
+      }
+    } catch (err) {
+      console.error("Failed to setup global shortcut:", err);
+    }
+  }
+
+  setupGlobalShortcut();
 
   // Check CLI on load
   checkObsidianCli();
@@ -868,7 +901,30 @@ async function initSettingsPage() {
     console.error("Failed to initialize autostart setting:", err);
   }
 
-  // 3. Predefined Target Files Manager
+  // 3. Global Hotkey Configuration
+  const hotkeyToggle = document.getElementById("hotkey-toggle") as HTMLInputElement;
+  const hotkeyInput = document.getElementById("hotkey-input") as HTMLInputElement;
+  
+  if (hotkeyToggle && hotkeyInput) {
+    const isHotkeyEnabled = localStorage.getItem("obsidian-hotkey-enabled") !== "false";
+    const currentHotkey = localStorage.getItem("obsidian-hotkey") || "CommandOrControl+Shift+Space";
+    
+    hotkeyToggle.checked = isHotkeyEnabled;
+    hotkeyInput.value = currentHotkey;
+    
+    hotkeyToggle.addEventListener("change", () => {
+      localStorage.setItem("obsidian-hotkey-enabled", String(hotkeyToggle.checked));
+      window.dispatchEvent(new StorageEvent("storage", { key: "obsidian-hotkey-enabled" }));
+    });
+    
+    hotkeyInput.addEventListener("input", () => {
+      const val = hotkeyInput.value.trim();
+      localStorage.setItem("obsidian-hotkey", val || "CommandOrControl+Shift+Space");
+      window.dispatchEvent(new StorageEvent("storage", { key: "obsidian-hotkey" }));
+    });
+  }
+
+  // 4. Predefined Target Files Manager
   let predefinedFiles: string[] = JSON.parse(localStorage.getItem("obsidian-predefined-files") || "[]");
   
   function renderFilesList() {
