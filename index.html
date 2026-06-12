@@ -158,7 +158,8 @@
         <h3>Predefined Target Files</h3>
         <div class="file-manager">
           <div class="add-file-row">
-            <input id="new-file-input" type="text" placeholder="Note Name (e.g. Ideas)" autocomplete="off" />
+            <input id="new-file-input" type="text" list="existing-files-list" placeholder="Note Name (e.g. Ideas)" autocomplete="off" />
+            <datalist id="existing-files-list"></datalist>
             <button id="add-file-btn" type="button">Add</button>
           </div>
           <ul id="files-list" class="files-list">

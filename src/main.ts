@@ -976,6 +976,37 @@ async function initSettingsPage() {
     }
   });
 
+  // 5. Fetch Existing Files for Autocomplete
+  async function fetchExistingFiles() {
+    const dataList = document.getElementById("existing-files-list") as HTMLDataListElement;
+    if (!dataList) return;
+    try {
+      const currentVault = localStorage.getItem("obsidian-vault") || "";
+      const args = ["files", "ext=md"];
+      if (currentVault) {
+        args.unshift(`vault=${currentVault}`);
+      }
+      const output = await executeObsidianCommand(args);
+      if (output.code === 0) {
+        const cleaned = cleanObsidianOutput(output.stdout);
+        const files = cleaned.split("\n").map(f => f.trim()).filter(f => f);
+        
+        dataList.innerHTML = "";
+        files.forEach(file => {
+          // Remove .md extension for display
+          const fileName = file.endsWith(".md") ? file.slice(0, -3) : file;
+          const option = document.createElement("option");
+          option.value = fileName;
+          dataList.appendChild(option);
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch existing files for autocomplete:", err);
+    }
+  }
+
+  fetchExistingFiles();
+
   closeSettingsBtn?.addEventListener("click", async () => {
     const currentWindow = getCurrentWindow();
     await currentWindow.close();
