@@ -967,6 +967,9 @@ async function initSettingsPage() {
   });
 
   newFileInput?.addEventListener("keydown", (e) => {
+    if (e.isComposing) {
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
       addFileBtn?.click();
