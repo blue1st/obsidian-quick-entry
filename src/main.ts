@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { enable as enableAutostart, isEnabled as isAutostartEnabled, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { register, unregisterAll } from "@tauri-apps/plugin-global-shortcut";
+import { register, unregisterAll, isRegistered } from "@tauri-apps/plugin-global-shortcut";
 
 const errorContainer = document.getElementById("error-container");
 const errorMessage = document.getElementById("error-message");
@@ -834,13 +834,17 @@ function initMainPage() {
       if (isEnabled && shortcutStr) {
         await register(shortcutStr, async (event) => {
           if (event.state === "Pressed") {
-            const currentWindow = getCurrentWindow();
-            const isVisible = await currentWindow.isVisible();
-            if (isVisible) {
-              await currentWindow.hide();
-            } else {
-              await currentWindow.show();
-              await currentWindow.setFocus();
+            try {
+              const currentWindow = getCurrentWindow();
+              const isVisible = await currentWindow.isVisible();
+              if (isVisible) {
+                await currentWindow.hide();
+              } else {
+                await currentWindow.show();
+                await currentWindow.setFocus();
+              }
+            } catch (e) {
+              console.error("Window toggle error", e);
             }
           }
         });
@@ -848,10 +852,20 @@ function initMainPage() {
       }
     } catch (err) {
       console.error("Failed to setup global shortcut:", err);
+      showError("Global Hotkey Error: " + err);
     }
   }
 
-  setupGlobalShortcut();
+  setupGlobalShortcut().then(async () => {
+    const isEnabled = localStorage.getItem("obsidian-hotkey-enabled") !== "false";
+    const shortcutStr = localStorage.getItem("obsidian-hotkey") || "CommandOrControl+Shift+Space";
+    if (isEnabled && shortcutStr) {
+        try {
+            const registered = await isRegistered(shortcutStr);
+            console.log("Is registered check:", registered);
+        } catch (e) {}
+    }
+  });
 
   // Check CLI on load
   checkObsidianCli();
