@@ -67,7 +67,7 @@ jobs:
           tagName: v__VERSION__
           releaseName: 'Obsidian Quick Entry v__VERSION__'
           releaseBody: 'See the assets below to download and install this version.'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
 
