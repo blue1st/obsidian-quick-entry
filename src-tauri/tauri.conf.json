@@ -21,7 +21,8 @@
         "visible": false,
         "decorations": false,
         "transparent": true,
-        "alwaysOnTop": true
+        "alwaysOnTop": true,
+        "skipTaskbar": true
       },
       {
         "label": "settings",
@@ -31,7 +32,8 @@
         "visible": false,
         "decorations": true,
         "alwaysOnTop": true,
-        "url": "index.html#settings"
+        "url": "index.html#settings",
+        "skipTaskbar": true
       }
     ],
     "security": {

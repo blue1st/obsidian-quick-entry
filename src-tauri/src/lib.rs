@@ -167,6 +167,9 @@ pub fn run() {
             is_obsidian_running
         ])
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let settings_i = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
             let reset_pos_i = MenuItem::with_id(app, "reset_position", "Reset Window Position", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
