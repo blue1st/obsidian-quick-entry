@@ -168,8 +168,9 @@ pub fn run() {
         ])
         .setup(|app| {
             let settings_i = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
+            let reset_pos_i = MenuItem::with_id(app, "reset_position", "Reset Window Position", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&settings_i, &quit_i])?;
+            let menu = Menu::with_items(app, &[&settings_i, &reset_pos_i, &quit_i])?;
 
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
@@ -180,6 +181,19 @@ pub fn run() {
                         if let Some(window) = app.get_webview_window("settings") {
                             let _ = window.show();
                             let _ = window.set_focus();
+                        }
+                    }
+                    "reset_position" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.center();
+                            let _ = window.set_focus();
+                        }
+                        if let Some(window) = app.get_webview_window("settings") {
+                            if window.is_visible().unwrap_or(false) {
+                                let _ = window.center();
+                                let _ = window.set_focus();
+                            }
                         }
                     }
                     "quit" => {
