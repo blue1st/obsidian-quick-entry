@@ -204,6 +204,31 @@ async function appendToDailyNote(text: string) {
   }
 }
 
+function setupCompositionTracker(input: HTMLElement | null) {
+  let isComposing = false;
+  let justComposed = false;
+
+  if (input) {
+    input.addEventListener("compositionstart", () => {
+      isComposing = true;
+    });
+
+    input.addEventListener("compositionend", () => {
+      isComposing = false;
+      justComposed = true;
+      setTimeout(() => {
+        justComposed = false;
+      }, 100);
+    });
+  }
+
+  return {
+    shouldIgnore(e: KeyboardEvent) {
+      return e.isComposing || isComposing || e.keyCode === 229 || justComposed;
+    }
+  };
+}
+
 function initMainPage() {
   const entryForm = document.getElementById("entry-form") as HTMLFormElement;
   const entryInput = document.getElementById("entry-input") as HTMLTextAreaElement;
@@ -222,6 +247,9 @@ function initMainPage() {
   const toggleMemoTaskBtn = document.getElementById("toggle-memo-task-btn") as HTMLButtonElement;
   const memoTaskInputContainer = document.getElementById("memo-task-input-container");
   const memoTaskInput = document.getElementById("memo-task-input") as HTMLInputElement;
+
+  const entryComposition = setupCompositionTracker(entryInput);
+  const memoTaskComposition = setupCompositionTracker(memoTaskInput);
 
   // Note Viewer elements
   const viewNoteBtn = document.getElementById("view-note-btn");
@@ -645,7 +673,7 @@ function initMainPage() {
   });
 
   memoTaskInput?.addEventListener("keydown", (e) => {
-    if (e.isComposing) {
+    if (memoTaskComposition.shouldIgnore(e)) {
       return;
     }
     if (handleSuggestKeyDown(e)) {
@@ -777,6 +805,9 @@ function initMainPage() {
   });
 
   entryInput?.addEventListener("keydown", (e) => {
+    if (entryComposition.shouldIgnore(e)) {
+      return;
+    }
     if (handleSuggestKeyDown(e)) {
       return;
     }
@@ -881,6 +912,8 @@ async function initSettingsPage() {
   const filesList = document.getElementById("files-list") as HTMLUListElement;
   const closeSettingsBtn = document.getElementById("close-settings-btn") as HTMLButtonElement;
 
+  const newFileComposition = setupCompositionTracker(newFileInput);
+
   // 1. Vault Name & Formatting Configuration
   let vaultName = localStorage.getItem("obsidian-vault") || "";
   if (vaultInput) {
@@ -981,7 +1014,7 @@ async function initSettingsPage() {
   });
 
   newFileInput?.addEventListener("keydown", (e) => {
-    if (e.isComposing) {
+    if (newFileComposition.shouldIgnore(e)) {
       return;
     }
     if (e.key === "Enter") {
