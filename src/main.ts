@@ -152,20 +152,36 @@ function hideError() {
   }
 }
 
+function formatHeading(template: string): string {
+  const now = new Date();
+  const YYYY = now.getFullYear().toString();
+  const MM = (now.getMonth() + 1).toString().padStart(2, "0");
+  const DD = now.getDate().toString().padStart(2, "0");
+  const HH = now.getHours().toString().padStart(2, "0");
+  const mm = now.getMinutes().toString().padStart(2, "0");
+  const ss = now.getSeconds().toString().padStart(2, "0");
+
+  return template
+    .replace(/YYYY/gi, YYYY)
+    .replace(/MM/g, MM)
+    .replace(/DD/gi, DD)
+    .replace(/HH/gi, HH)
+    .replace(/mm/g, mm)
+    .replace(/ss/gi, ss);
+}
+
 async function appendToDailyNote(text: string) {
   try {
-    const customHeadingToggle = document.getElementById("custom-heading-toggle") as HTMLInputElement;
     const customHeadingInput = document.getElementById("custom-heading-input") as HTMLInputElement;
     
-    let formattedText = "";
-    if (customHeadingToggle?.checked && customHeadingInput?.value.trim()) {
-      formattedText = `\n\n${customHeadingInput.value.trim()}\n\n${text}`;
-    } else {
-      const now = new Date();
-      const dateStr = now.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "-").replace(/[\u200E\u200F\u202A-\u202E]/g, "");
-      const timeStr = now.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }).replace(/[\u200E\u200F\u202A-\u202E]/g, "");
-      formattedText = `\n\n## ${dateStr} ${timeStr}\n\n${text}`;
+    let heading = customHeadingInput?.value.trim();
+    if (!heading) {
+      const settingsTemplate = localStorage.getItem("obsidian-custom-heading") || "";
+      const template = settingsTemplate || "## YYYY-MM-DD HH:mm";
+      heading = formatHeading(template);
     }
+    
+    const formattedText = `\n\n${heading}\n\n${text}`;
     
     const targetSelect = document.getElementById("target-select") as HTMLSelectElement;
     const destination = targetSelect ? targetSelect.value : "daily";
@@ -759,32 +775,20 @@ function initMainPage() {
     }
   });
 
-  const customHeadingToggle = document.getElementById("custom-heading-toggle") as HTMLInputElement;
   const customHeadingInput = document.getElementById("custom-heading-input") as HTMLInputElement;
 
-  if (customHeadingToggle && customHeadingInput) {
-    const useCustomHeading = localStorage.getItem("obsidian-use-custom-heading") === "true";
-    const popupCustomHeading = localStorage.getItem("obsidian-popup-custom-heading") || "";
+  function updateHeadingPlaceholder() {
+    if (!customHeadingInput) return;
+    const settingsTemplate = localStorage.getItem("obsidian-custom-heading") || "";
+    const template = settingsTemplate || "## YYYY-MM-DD HH:mm";
+    customHeadingInput.placeholder = formatHeading(template);
+  }
 
-    customHeadingToggle.checked = useCustomHeading;
+  if (customHeadingInput) {
+    const popupCustomHeading = localStorage.getItem("obsidian-popup-custom-heading") || "";
     customHeadingInput.value = popupCustomHeading;
 
-    if (useCustomHeading) {
-      customHeadingInput.classList.remove("hidden");
-    } else {
-      customHeadingInput.classList.add("hidden");
-    }
-
-    customHeadingToggle.addEventListener("change", () => {
-      const checked = customHeadingToggle.checked;
-      localStorage.setItem("obsidian-use-custom-heading", String(checked));
-      if (checked) {
-        customHeadingInput.classList.remove("hidden");
-        customHeadingInput.focus();
-      } else {
-        customHeadingInput.classList.add("hidden");
-      }
-    });
+    updateHeadingPlaceholder();
 
     customHeadingInput.addEventListener("input", () => {
       localStorage.setItem("obsidian-popup-custom-heading", customHeadingInput.value.trim());
@@ -836,6 +840,7 @@ function initMainPage() {
 
   // Focus listener to refresh tasks when tray app gains focus
   getCurrentWindow().listen('tauri://focus', async () => {
+    updateHeadingPlaceholder();
     if (currentTab === "tasks") {
       await fetchTasks();
     }
@@ -852,6 +857,9 @@ function initMainPage() {
     }
     if (e.key === "obsidian-hotkey-enabled" || e.key === "obsidian-hotkey") {
       setupGlobalShortcut();
+    }
+    if (e.key === "obsidian-custom-heading") {
+      updateHeadingPlaceholder();
     }
   });
 
