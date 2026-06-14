@@ -1,5 +1,9 @@
 # Obsidian Quick Entry
 
+<div align="center">
+  <img src="src/assets/app-icon.png" width="128" height="128" alt="Obsidian Quick Entry Icon">
+</div>
+
 システムトレイ（メニューバー）から即座に起動し、Obsidianのデイリーノートや登録した任意のノートへ複数行のメモをすばやく追記できるデスクトップウィジェットです。
 
 Macのメニューバーになじむ半透明（グラスモーフィズム）のプレミアムなデザインを採用し、キーボード操作だけでメモの記述から保存、非表示までを完結させられます。
