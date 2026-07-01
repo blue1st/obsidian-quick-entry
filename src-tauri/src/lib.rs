@@ -39,7 +39,7 @@ fn get_obsidian_cli_info() -> CliTypeInfo {
 }
 
 #[tauri::command]
-fn execute_obsidian_command(args: Vec<String>) -> Result<CommandOutput, String> {
+async fn execute_obsidian_command(args: Vec<String>) -> Result<CommandOutput, String> {
     let program = resolve_obsidian_cli()
         .ok_or_else(|| "Obsidian CLI not found in PATH".to_string())?;
 
@@ -60,24 +60,34 @@ fn execute_obsidian_command(args: Vec<String>) -> Result<CommandOutput, String> 
     let stderr_file = std::fs::File::create(&stderr_path)
         .map_err(|e| format!("Failed to create stderr temp file: {}", e))?;
 
-    let mut child = std::process::Command::new(program)
+    let mut child = tokio::process::Command::new(program)
         .args(&args)
         .stdout(stdout_file)
         .stderr(stderr_file)
         .spawn()
         .map_err(|e| format!("Failed to spawn obsidian command: {}", e))?;
 
-    let status = child.wait()
-        .map_err(|e| format!("Failed to wait for obsidian command: {}", e))?;
+    let status = match tokio::time::timeout(std::time::Duration::from_secs(10), child.wait()).await {
+        Ok(Ok(status)) => status,
+        Ok(Err(e)) => return Err(format!("Failed to wait for obsidian command: {}", e)),
+        Err(_) => {
+            let _ = child.kill().await;
+            let _ = tokio::fs::remove_file(&stdout_path).await;
+            let _ = tokio::fs::remove_file(&stderr_path).await;
+            return Err("Obsidian command timed out after 10 seconds".to_string());
+        }
+    };
 
-    let stdout = std::fs::read_to_string(&stdout_path)
+    let stdout = tokio::fs::read_to_string(&stdout_path)
+        .await
         .unwrap_or_else(|_| String::new());
-    let stderr = std::fs::read_to_string(&stderr_path)
+    let stderr = tokio::fs::read_to_string(&stderr_path)
+        .await
         .unwrap_or_else(|_| String::new());
 
     // Clean up temporary files
-    let _ = std::fs::remove_file(&stdout_path);
-    let _ = std::fs::remove_file(&stderr_path);
+    let _ = tokio::fs::remove_file(&stdout_path).await;
+    let _ = tokio::fs::remove_file(&stderr_path).await;
 
     let code = status.code().unwrap_or(-1);
 
@@ -89,12 +99,13 @@ fn execute_obsidian_command(args: Vec<String>) -> Result<CommandOutput, String> 
 }
 
 #[tauri::command]
-fn is_obsidian_running() -> bool {
+async fn is_obsidian_running() -> bool {
     #[cfg(target_os = "windows")]
     {
-        let output = std::process::Command::new("tasklist")
+        let output = tokio::process::Command::new("tasklist")
             .args(&["/FI", "IMAGENAME eq Obsidian.exe"])
-            .output();
+            .output()
+            .await;
         if let Ok(out) = output {
             let stdout = String::from_utf8_lossy(&out.stdout);
             return stdout.contains("Obsidian.exe");
@@ -109,9 +120,10 @@ fn is_obsidian_running() -> bool {
             "pgrep"
         };
 
-        let output = std::process::Command::new(pgrep_cmd)
-            .args(&["-x", "Obsidian"])
-            .output();
+        let output = tokio::process::Command::new(pgrep_cmd)
+            .args(&["-ix", "obsidian"])
+            .output()
+            .await;
         if let Ok(out) = output {
             out.status.success()
         } else {
@@ -126,9 +138,10 @@ fn is_obsidian_running() -> bool {
             "pgrep"
         };
 
-        let output = std::process::Command::new(pgrep_cmd)
+        let output = tokio::process::Command::new(pgrep_cmd)
             .args(&["-x", "obsidian"])
-            .output();
+            .output()
+            .await;
         if let Ok(out) = output {
             out.status.success()
         } else {
