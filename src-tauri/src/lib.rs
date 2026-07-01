@@ -137,6 +137,46 @@ fn is_obsidian_running() -> bool {
     }
 }
 
+fn move_window_to_cursor_monitor(window: &tauri::WebviewWindow) {
+    if let Ok(cursor_pos) = window.cursor_position() {
+        if let Ok(monitors) = window.available_monitors() {
+            let primary = window.primary_monitor().ok().flatten();
+            let target_monitor = monitors.iter().find(|m| {
+                let pos = m.position();
+                let size = m.size();
+                cursor_pos.x >= pos.x as f64 &&
+                cursor_pos.x <= (pos.x + size.width as i32) as f64 &&
+                cursor_pos.y >= pos.y as f64 &&
+                cursor_pos.y <= (pos.y + size.height as i32) as f64
+            }).or(primary.as_ref());
+
+            if let Some(monitor) = target_monitor {
+                let monitor_pos = monitor.position();
+                let monitor_size = monitor.size();
+                if let Ok(window_size) = window.outer_size() {
+                    let new_x = monitor_pos.x + (monitor_size.width as i32 - window_size.width as i32) / 2;
+                    let new_y = monitor_pos.y + (monitor_size.height as i32 - window_size.height as i32) / 2;
+                    let _ = window.set_position(tauri::PhysicalPosition { x: new_x, y: new_y });
+                }
+            }
+        }
+    }
+}
+
+#[tauri::command]
+fn toggle_main_window(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let is_visible = window.is_visible().unwrap_or(false);
+        if is_visible {
+            let _ = window.hide();
+        } else {
+            move_window_to_cursor_monitor(&window);
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "macos")]
@@ -164,7 +204,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_obsidian_cli_info,
             execute_obsidian_command,
-            is_obsidian_running
+            is_obsidian_running,
+            toggle_main_window
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -190,8 +231,8 @@ pub fn run() {
                     }
                     "reset_position" => {
                         if let Some(window) = app.get_webview_window("main") {
+                            move_window_to_cursor_monitor(&window);
                             let _ = window.show();
-                            let _ = window.center();
                             let _ = window.set_focus();
                         }
                         if let Some(window) = app.get_webview_window("settings") {
@@ -218,6 +259,7 @@ pub fn run() {
                             if is_visible {
                                 let _ = window.hide();
                             } else {
+                                move_window_to_cursor_monitor(&window);
                                 let _ = window.show();
                                 let _ = window.set_focus();
                             }

@@ -874,14 +874,7 @@ function initMainPage() {
         await register(shortcutStr, async (event) => {
           if (event.state === "Pressed") {
             try {
-              const currentWindow = getCurrentWindow();
-              const isVisible = await currentWindow.isVisible();
-              if (isVisible) {
-                await currentWindow.hide();
-              } else {
-                await currentWindow.show();
-                await currentWindow.setFocus();
-              }
+              await invoke("toggle_main_window");
             } catch (e) {
               console.error("Window toggle error", e);
             }
