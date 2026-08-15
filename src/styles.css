@@ -626,6 +626,7 @@ body.settings-page {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   transition: all 0.2s ease;
+  position: relative;
 }
 
 .task-item:hover {
@@ -642,12 +643,97 @@ body.settings-page {
   }
 }
 
-.task-checkbox {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent-color);
+/* Extended Task Status Buttons */
+.task-status-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+  padding: 0;
+  background: transparent;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.task-status-btn.status-todo {
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.35);
+}
+.task-status-btn.status-todo:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+@media (prefers-color-scheme: light) {
+  .task-status-btn.status-todo {
+    border-color: rgba(0, 0, 0, 0.3);
+    color: rgba(0, 0, 0, 0.3);
+  }
+}
+
+.task-status-btn.status-progress {
+  border: 1.5px solid #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.task-status-btn.status-done {
+  border: 1.5px solid #10b981;
+  background: #10b981;
+  color: #ffffff;
+}
+
+.task-status-btn.status-cancelled {
+  border: 1.5px solid #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.task-status-btn.status-question {
+  border: 1.5px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.task-status-btn.status-deferred {
+  border: 1.5px solid #8b5cf6;
+  background: rgba(139, 92, 246, 0.15);
+  color: #8b5cf6;
+}
+
+.task-status-btn.status-custom {
+  border: 1.5px solid #06b6d4;
+  background: rgba(6, 182, 212, 0.15);
+  color: #06b6d4;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.task-menu-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  opacity: 0;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.task-item:hover .task-menu-btn {
+  opacity: 0.5;
+}
+
+.task-menu-btn:hover {
+  opacity: 1 !important;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .task-text {
@@ -662,9 +748,99 @@ body.settings-page {
 .task-item.done {
   opacity: 0.5;
 }
-
 .task-item.done .task-text {
   text-decoration: line-through;
+}
+
+.task-item.cancelled {
+  opacity: 0.55;
+}
+.task-item.cancelled .task-text {
+  text-decoration: line-through;
+  opacity: 0.8;
+}
+
+.task-item.in-progress {
+  border-left: 3px solid #3b82f6;
+}
+
+.task-item.question {
+  border-left: 3px solid #f59e0b;
+}
+
+.task-item.deferred {
+  border-left: 3px solid #8b5cf6;
+}
+
+/* Task Status Popover Styling */
+.task-status-popover {
+  position: absolute;
+  z-index: 1000;
+  background: rgba(30, 30, 36, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  width: 170px;
+  animation: fadeIn 0.15s ease forwards;
+}
+
+@media (prefers-color-scheme: light) {
+  .task-status-popover {
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.status-popover-header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-color);
+  opacity: 0.5;
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+
+.status-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.status-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text-color);
+  transition: background 0.15s ease, transform 0.1s ease;
+  user-select: none;
+}
+
+.status-popover-item:hover {
+  background: rgba(139, 92, 246, 0.15);
+}
+
+.status-popover-item.active {
+  font-weight: 600;
+  background: rgba(139, 92, 246, 0.25);
+}
+
+.status-popover-item .status-label {
+  flex-grow: 1;
+}
+
+.status-popover-item .status-check-mark {
+  font-size: 0.8rem;
+  color: var(--accent-color);
 }
 
 /* Loading Spinner */

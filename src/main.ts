@@ -124,6 +124,76 @@ function parseJsonOutput(stdout: string): any {
   throw new Error("No JSON array found in CLI output: " + stdout);
 }
 
+interface StatusOption {
+  symbol: string;
+  label: string;
+  className: string;
+  itemClassName: string;
+  svgIcon: string;
+}
+
+const TASK_STATUSES: StatusOption[] = [
+  {
+    symbol: " ",
+    label: "未着手 (Todo)",
+    className: "status-todo",
+    itemClassName: "",
+    svgIcon: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>`
+  },
+  {
+    symbol: "/",
+    label: "進行中 (In Progress)",
+    className: "status-progress",
+    itemClassName: "in-progress",
+    svgIcon: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 3"/></svg>`
+  },
+  {
+    symbol: "x",
+    label: "完了 (Done)",
+    className: "status-done",
+    itemClassName: "done",
+    svgIcon: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>`
+  },
+  {
+    symbol: "-",
+    label: "中止 (Cancelled)",
+    className: "status-cancelled",
+    itemClassName: "cancelled",
+    svgIcon: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>`
+  },
+  {
+    symbol: "?",
+    label: "保留 (Question)",
+    className: "status-question",
+    itemClassName: "question",
+    svgIcon: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="8"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
+  },
+  {
+    symbol: ">",
+    label: "延期 (Deferred)",
+    className: "status-deferred",
+    itemClassName: "deferred",
+    svgIcon: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="8"/><polyline points="12 8 16 12 12 16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`
+  }
+];
+
+function getStatusOption(symbol: string): StatusOption {
+  const normalized = (symbol || " ").trim().toLowerCase();
+  if (!normalized || normalized === " ") {
+    return TASK_STATUSES[0];
+  }
+  const match = TASK_STATUSES.find(s => s.symbol.toLowerCase() === normalized);
+  if (match) return match;
+
+  return {
+    symbol: symbol,
+    label: `Custom [${symbol}]`,
+    className: "status-custom",
+    itemClassName: "",
+    svgIcon: `<span>${symbol}</span>`
+  };
+}
+
 function cleanTaskText(text: string): string {
   return text.replace(/^-\s*\[.\]\s*/, "");
 }
@@ -529,43 +599,66 @@ function initMainPage() {
         const li = document.createElement("li");
         li.className = "task-item";
         
-        const isDone = task.status.trim().toLowerCase() === "x";
-        if (isDone) {
-          li.classList.add("done");
+        const rawStatus = task.status ? task.status.trim() : " ";
+        const statusOpt = getStatusOption(rawStatus);
+        
+        if (statusOpt.itemClassName) {
+          li.classList.add(statusOpt.itemClassName);
         }
         
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.className = "task-checkbox";
-        checkbox.checked = isDone;
+        const statusBtn = document.createElement("button");
+        statusBtn.type = "button";
+        statusBtn.className = `task-status-btn ${statusOpt.className}`;
+        statusBtn.title = `Status: ${statusOpt.label} (Right-click to change)`;
+        statusBtn.innerHTML = statusOpt.svgIcon;
         
         const textSpan = document.createElement("span");
         textSpan.className = "task-text";
         textSpan.textContent = cleanTaskText(task.text);
         
-        const handleToggle = async (e: Event) => {
+        const menuBtn = document.createElement("button");
+        menuBtn.type = "button";
+        menuBtn.className = "task-menu-btn";
+        menuBtn.title = "Change Status";
+        menuBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>`;
+        
+        // Primary 1-click toggle:
+        const handlePrimaryToggle = async (e: Event) => {
           e.preventDefault();
           e.stopPropagation();
+          hideStatusPopover();
           
-          const nextCheckedState = !checkbox.checked;
-          checkbox.checked = nextCheckedState;
-          if (nextCheckedState) {
-            li.classList.add("done");
-          } else {
-            li.classList.remove("done");
-          }
+          // If currently Done ('x'), toggle back to Todo (' ')
+          // Otherwise, toggle to Done ('x')
+          const isDone = rawStatus.toLowerCase() === "x";
+          const nextStatus = isDone ? " " : "x";
           
-          checkbox.disabled = true;
+          statusBtn.disabled = true;
           textSpan.style.pointerEvents = "none";
           
-          await toggleTask(task);
+          await setTaskStatus(task, nextStatus);
         };
         
-        checkbox.addEventListener("change", handleToggle);
-        textSpan.addEventListener("click", handleToggle);
+        statusBtn.addEventListener("click", handlePrimaryToggle);
+        textSpan.addEventListener("click", handlePrimaryToggle);
         
-        li.appendChild(checkbox);
+        // Right click on item -> Open Status Popover
+        li.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showStatusPopover(task, statusBtn, e);
+        });
+        
+        // Left click on menu button -> Open Status Popover
+        menuBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showStatusPopover(task, menuBtn);
+        });
+        
+        li.appendChild(statusBtn);
         li.appendChild(textSpan);
+        li.appendChild(menuBtn);
         taskList.appendChild(li);
       });
     } catch (err) {
@@ -575,7 +668,93 @@ function initMainPage() {
     }
   }
 
-  async function toggleTask(task: any) {
+  function hideStatusPopover() {
+    const popover = document.getElementById("task-status-popover");
+    if (popover) {
+      popover.classList.add("hidden");
+    }
+  }
+
+  function showStatusPopover(task: any, targetElem: HTMLElement, clickEvent?: MouseEvent) {
+    const popover = document.getElementById("task-status-popover");
+    const popoverList = document.getElementById("status-popover-list");
+    if (!popover || !popoverList) return;
+
+    popoverList.innerHTML = "";
+    const rawStatus = task.status ? task.status.trim() : " ";
+    const currentSymbol = rawStatus.toLowerCase() || " ";
+
+    TASK_STATUSES.forEach((opt) => {
+      const item = document.createElement("div");
+      item.className = "status-popover-item";
+      if (opt.symbol.toLowerCase() === currentSymbol) {
+        item.classList.add("active");
+      }
+
+      const iconSpan = document.createElement("span");
+      iconSpan.className = `task-status-btn ${opt.className}`;
+      iconSpan.style.width = "18px";
+      iconSpan.style.height = "18px";
+      iconSpan.innerHTML = opt.svgIcon;
+
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "status-label";
+      labelSpan.textContent = opt.label;
+
+      item.appendChild(iconSpan);
+      item.appendChild(labelSpan);
+
+      if (opt.symbol.toLowerCase() === currentSymbol) {
+        const checkSpan = document.createElement("span");
+        checkSpan.className = "status-check-mark";
+        checkSpan.textContent = "✓";
+        item.appendChild(checkSpan);
+      }
+
+      item.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        hideStatusPopover();
+        await setTaskStatus(task, opt.symbol);
+      });
+
+      popoverList.appendChild(item);
+    });
+
+    popover.classList.remove("hidden");
+
+    const taskContainer = document.getElementById("task-view-container");
+    if (taskContainer) {
+      const containerRect = taskContainer.getBoundingClientRect();
+      const elemRect = targetElem.getBoundingClientRect();
+
+      let top = elemRect.bottom - containerRect.top + 4;
+      let left = elemRect.left - containerRect.left;
+
+      if (clickEvent) {
+        top = clickEvent.clientY - containerRect.top + 4;
+        left = clickEvent.clientX - containerRect.left - 20;
+      }
+
+      const popoverWidth = 170;
+      const popoverHeight = 220;
+
+      if (left + popoverWidth > containerRect.width) {
+        left = containerRect.width - popoverWidth - 8;
+      }
+      if (left < 4) left = 4;
+
+      if (top + popoverHeight > containerRect.height) {
+        top = elemRect.top - containerRect.top - popoverHeight - 4;
+        if (top < 4) top = 4;
+      }
+
+      popover.style.top = `${top}px`;
+      popover.style.left = `${left}px`;
+    }
+  }
+
+  async function setTaskStatus(task: any, statusChar: string) {
     try {
       const currentVault = localStorage.getItem("obsidian-vault") || "";
       const args: string[] = [];
@@ -585,14 +764,21 @@ function initMainPage() {
       args.push("task");
       args.push(`path=${task.file}`);
       args.push(`line=${task.line}`);
-      args.push("toggle");
-      
+
+      if (statusChar === "x" || statusChar === "X") {
+        args.push("status=x");
+      } else if (statusChar === " " || !statusChar) {
+        args.push("status= ");
+      } else {
+        args.push(`status=${statusChar}`);
+      }
+
       const output = await executeObsidianCommand(args);
       const cleanStderr = cleanObsidianOutput(output.stderr);
       if (output.code !== 0) {
         throw new Error(cleanStderr || output.stdout.trim() || `Exit code ${output.code}`);
       }
-      
+
       await fetchTasks();
     } catch (err) {
       showError("Failed to execute task update: " + err);
@@ -720,15 +906,35 @@ function initMainPage() {
     closeNoteViewer();
   });
 
-  // Intercept escape key on window level to close drawer if open
+  // Dismiss status popover on window click or Escape
+  window.addEventListener("click", (e) => {
+    const popover = document.getElementById("task-status-popover");
+    if (popover && !popover.classList.contains("hidden")) {
+      const target = e.target as HTMLElement;
+      if (!popover.contains(target) && !target.closest(".task-menu-btn") && !target.closest(".task-status-btn")) {
+        hideStatusPopover();
+      }
+    }
+  });
+
+  // Intercept escape key on window level to close drawer or popover if open
   window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && noteViewerDrawer?.classList.contains("open")) {
-      e.stopPropagation();
-      closeNoteViewer();
+    if (e.key === "Escape") {
+      const popover = document.getElementById("task-status-popover");
+      if (popover && !popover.classList.contains("hidden")) {
+        e.stopPropagation();
+        hideStatusPopover();
+        return;
+      }
+      if (noteViewerDrawer?.classList.contains("open")) {
+        e.stopPropagation();
+        closeNoteViewer();
+      }
     }
   }, true);
 
   function switchTab(tab: "memo" | "tasks") {
+    hideStatusPopover();
     currentTab = tab;
     if (tab === "memo") {
       tabMemo?.classList.add("active");
