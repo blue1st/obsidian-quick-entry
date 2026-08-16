@@ -1468,6 +1468,33 @@ async function initAboutSection() {
     }
   };
 
+  const aboutModal = document.getElementById("about-modal");
+  const openAboutBtn = document.getElementById("open-about-btn");
+  const closeAboutBtn = document.getElementById("close-about-btn");
+
+  const openAboutModal = () => {
+    aboutModal?.classList.remove("hidden");
+  };
+
+  const closeAboutModal = () => {
+    aboutModal?.classList.add("hidden");
+  };
+
+  openAboutBtn?.addEventListener("click", openAboutModal);
+  closeAboutBtn?.addEventListener("click", closeAboutModal);
+
+  aboutModal?.addEventListener("click", (e) => {
+    if (e.target === aboutModal) {
+      closeAboutModal();
+    }
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !aboutModal?.classList.contains("hidden")) {
+      closeAboutModal();
+    }
+  });
+
   checkUpdateBtn?.addEventListener("click", async () => {
     if (updateStatusTextEl) updateStatusTextEl.textContent = "Checking for updates...";
     checkUpdateBtn.disabled = true;
