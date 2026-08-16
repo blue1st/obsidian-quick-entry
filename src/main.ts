@@ -1339,6 +1339,149 @@ if (settingsVersionLabel) {
   settingsVersionLabel.textContent = `v${appVersion}`;
 }
 
+// GitHub Releases Update Checker
+const GITHUB_REPO_URL = "https://github.com/blue1st/obsidian-quick-entry";
+const GITHUB_API_LATEST_RELEASE = "https://api.github.com/repos/blue1st/obsidian-quick-entry/releases/latest";
+const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function parseSemVer(v: string): number[] {
+  const clean = v.replace(/^v/, "").trim();
+  const parts = clean.split(".").map(p => parseInt(p, 10) || 0);
+  while (parts.length < 3) parts.push(0);
+  return parts;
+}
+
+function isNewerVersion(current: string, latest: string): boolean {
+  const c = parseSemVer(current);
+  const l = parseSemVer(latest);
+  for (let i = 0; i < 3; i++) {
+    if (l[i] > c[i]) return true;
+    if (l[i] < c[i]) return false;
+  }
+  return false;
+}
+
+interface ReleaseCache {
+  tagName: string;
+  htmlUrl: string;
+  hasUpdate: boolean;
+  checkedAt: number;
+}
+
+async function checkAppUpdate(force = false): Promise<ReleaseCache | null> {
+  const now = Date.now();
+  const lastCheckStr = localStorage.getItem("obsidian-last-update-check");
+  const lastCheck = lastCheckStr ? parseInt(lastCheckStr, 10) : 0;
+  const cachedInfoStr = localStorage.getItem("obsidian-latest-release-info");
+
+  if (!force && lastCheck > 0 && now - lastCheck < CHECK_INTERVAL_MS && cachedInfoStr) {
+    try {
+      return JSON.parse(cachedInfoStr) as ReleaseCache;
+    } catch {
+      // Ignore parse error
+    }
+  }
+
+  try {
+    const res = await fetch(GITHUB_API_LATEST_RELEASE, {
+      headers: { "Accept": "application/vnd.github.v3+json" }
+    });
+    if (!res.ok) {
+      throw new Error(`GitHub API error: ${res.status}`);
+    }
+    const data = await res.json();
+    const tagName = data.tag_name || "";
+    const htmlUrl = data.html_url || `${GITHUB_REPO_URL}/releases`;
+    const hasUpdate = isNewerVersion(appVersion, tagName);
+
+    const cache: ReleaseCache = {
+      tagName,
+      htmlUrl,
+      hasUpdate,
+      checkedAt: now
+    };
+
+    localStorage.setItem("obsidian-last-update-check", String(now));
+    localStorage.setItem("obsidian-latest-release-info", JSON.stringify(cache));
+
+    return cache;
+  } catch (err) {
+    console.error("Failed to check for updates:", err);
+    if (cachedInfoStr) {
+      try {
+        return JSON.parse(cachedInfoStr) as ReleaseCache;
+      } catch {
+        // Ignore
+      }
+    }
+    return null;
+  }
+}
+
+async function initAboutSection() {
+  const aboutVersionEl = document.getElementById("about-version");
+  const updateStatusTextEl = document.getElementById("update-status-text");
+  const checkUpdateBtn = document.getElementById("check-update-btn") as HTMLButtonElement | null;
+  const openReleaseBtn = document.getElementById("open-release-btn") as HTMLButtonElement | null;
+  const githubLink = document.getElementById("github-link");
+  const appUpdateBadge = document.getElementById("app-update-badge");
+
+  if (aboutVersionEl) {
+    aboutVersionEl.textContent = `v${appVersion}`;
+  }
+
+  githubLink?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openUrl(GITHUB_REPO_URL);
+  });
+
+  const applyUpdateUI = (info: ReleaseCache | null) => {
+    if (!info) {
+      if (updateStatusTextEl) updateStatusTextEl.textContent = "Could not check for updates.";
+      openReleaseBtn?.classList.add("hidden");
+      appUpdateBadge?.classList.add("hidden");
+      return;
+    }
+
+    if (info.hasUpdate) {
+      if (updateStatusTextEl) {
+        updateStatusTextEl.textContent = `🎉 New version ${info.tagName} is available!`;
+      }
+      openReleaseBtn?.classList.remove("hidden");
+      const openAction = () => openUrl(info.htmlUrl);
+      if (openReleaseBtn) {
+        openReleaseBtn.onclick = openAction;
+      }
+
+      if (appUpdateBadge) {
+        appUpdateBadge.classList.remove("hidden");
+        appUpdateBadge.title = `New version ${info.tagName} available`;
+        appUpdateBadge.onclick = openAction;
+      }
+    } else {
+      if (updateStatusTextEl) {
+        const lastCheckedDate = new Date(info.checkedAt).toLocaleDateString();
+        updateStatusTextEl.textContent = `You are on the latest version (v${appVersion}). Last checked: ${lastCheckedDate}`;
+      }
+      openReleaseBtn?.classList.add("hidden");
+      appUpdateBadge?.classList.add("hidden");
+    }
+  };
+
+  checkUpdateBtn?.addEventListener("click", async () => {
+    if (updateStatusTextEl) updateStatusTextEl.textContent = "Checking for updates...";
+    checkUpdateBtn.disabled = true;
+    const info = await checkAppUpdate(true);
+    checkUpdateBtn.disabled = false;
+    applyUpdateUI(info);
+  });
+
+  const info = await checkAppUpdate(false);
+  applyUpdateUI(info);
+}
+
+initAboutSection();
+
 // Programmatic window dragging fallback for frameless window
 const mainViewEl = document.getElementById("main-view");
 mainViewEl?.addEventListener("mousedown", (e) => {

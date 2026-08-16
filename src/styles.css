@@ -1150,3 +1150,100 @@ body.settings-page {
   color: #ffffff;
 }
 
+/* Update Badge */
+.update-badge {
+  display: inline-block;
+  background-color: var(--accent-color);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 10px;
+  margin-left: 6px;
+  cursor: pointer;
+  animation: pulseBadge 2s infinite ease-in-out;
+}
+
+@keyframes pulseBadge {
+  0% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.9; }
+}
+
+/* About Section & Card */
+.about-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.about-app-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.about-app-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.about-version {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.update-status-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+}
+
+.update-status-text {
+  font-size: 0.8rem;
+  color: var(--text-color);
+  opacity: 0.9;
+  word-break: break-word;
+}
+
+.update-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.secondary-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.secondary-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.about-links {
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
+.about-link {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+.about-link:hover {
+  text-decoration: underline;
+}
+

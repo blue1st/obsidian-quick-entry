@@ -96,6 +96,7 @@
         </div>
         <div class="right-footer">
           <span id="app-version-label" class="version-label"></span>
+          <span id="app-update-badge" class="update-badge hidden" title="New version available">NEW</span>
         </div>
       </div>
 
@@ -172,6 +173,26 @@
           <ul id="files-list" class="files-list">
             <!-- Populated via JavaScript -->
           </ul>
+        </div>
+      </div>
+
+      <div class="settings-section about-section">
+        <h3>About</h3>
+        <div class="about-card">
+          <div class="about-app-info">
+            <span class="about-app-name">Obsidian Quick Entry</span>
+            <span id="about-version" class="about-version"></span>
+          </div>
+          <div id="update-status-container" class="update-status-container">
+            <div id="update-status-text" class="update-status-text">Checking for updates...</div>
+            <div class="update-actions">
+              <button type="button" id="check-update-btn" class="secondary-btn">Check for Updates</button>
+              <button type="button" id="open-release-btn" class="primary-btn hidden">View Release</button>
+            </div>
+          </div>
+          <div class="about-links">
+            <a href="#" id="github-link" class="about-link">GitHub Repository</a>
+          </div>
         </div>
       </div>
 
