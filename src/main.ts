@@ -1116,6 +1116,7 @@ async function initSettingsPage() {
   const autostartCheckbox = document.getElementById("autostart-checkbox") as HTMLInputElement;
   const newFileInput = document.getElementById("new-file-input") as HTMLInputElement;
   const addFileBtn = document.getElementById("add-file-btn") as HTMLButtonElement;
+  const reloadFilesBtn = document.getElementById("reload-files-btn") as HTMLButtonElement;
   const filesList = document.getElementById("files-list") as HTMLUListElement;
   const closeSettingsBtn = document.getElementById("close-settings-btn") as HTMLButtonElement;
 
@@ -1231,9 +1232,24 @@ async function initSettingsPage() {
   });
 
   // 5. Fetch Existing Files for Autocomplete
-  async function fetchExistingFiles() {
+  let isFetchingFiles = false;
+  let lastFetchTime = 0;
+
+  async function fetchExistingFiles(force = false) {
     const dataList = document.getElementById("existing-files-list") as HTMLDataListElement;
-    if (!dataList) return;
+    if (!dataList || isFetchingFiles) return;
+
+    const now = Date.now();
+    if (!force && now - lastFetchTime < 2000) {
+      return;
+    }
+
+    isFetchingFiles = true;
+    if (reloadFilesBtn) {
+      reloadFilesBtn.disabled = true;
+      reloadFilesBtn.classList.add("spinning");
+    }
+
     try {
       const currentVault = localStorage.getItem("obsidian-vault") || "";
       const args = ["files", "ext=md"];
@@ -1253,13 +1269,28 @@ async function initSettingsPage() {
           option.value = fileName;
           dataList.appendChild(option);
         });
+        lastFetchTime = Date.now();
       }
     } catch (err) {
       console.error("Failed to fetch existing files for autocomplete:", err);
+    } finally {
+      isFetchingFiles = false;
+      if (reloadFilesBtn) {
+        reloadFilesBtn.disabled = false;
+        reloadFilesBtn.classList.remove("spinning");
+      }
     }
   }
 
-  fetchExistingFiles();
+  fetchExistingFiles(true);
+
+  reloadFilesBtn?.addEventListener("click", () => {
+    fetchExistingFiles(true);
+  });
+
+  newFileInput?.addEventListener("focus", () => {
+    fetchExistingFiles();
+  });
 
   closeSettingsBtn?.addEventListener("click", async () => {
     const currentWindow = getCurrentWindow();
