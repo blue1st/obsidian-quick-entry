@@ -1329,7 +1329,7 @@ if (window.location.hash === "#settings") {
 }
 
 // Initialize version labels using injected Vite metadata
-const appVersion = (import.meta as any).env.APP_VERSION || "0.1.16";
+const appVersion = (import.meta as any).env.APP_VERSION || "0.2.5";
 const mainVersionLabel = document.getElementById("app-version-label");
 if (mainVersionLabel) {
   mainVersionLabel.textContent = `v${appVersion}`;
@@ -1376,7 +1376,11 @@ async function checkAppUpdate(force = false): Promise<ReleaseCache | null> {
 
   if (!force && lastCheck > 0 && now - lastCheck < CHECK_INTERVAL_MS && cachedInfoStr) {
     try {
-      return JSON.parse(cachedInfoStr) as ReleaseCache;
+      const cached = JSON.parse(cachedInfoStr) as ReleaseCache;
+      return {
+        ...cached,
+        hasUpdate: isNewerVersion(appVersion, cached.tagName)
+      };
     } catch {
       // Ignore parse error
     }
@@ -1409,7 +1413,11 @@ async function checkAppUpdate(force = false): Promise<ReleaseCache | null> {
     console.error("Failed to check for updates:", err);
     if (cachedInfoStr) {
       try {
-        return JSON.parse(cachedInfoStr) as ReleaseCache;
+        const cached = JSON.parse(cachedInfoStr) as ReleaseCache;
+        return {
+          ...cached,
+          hasUpdate: isNewerVersion(appVersion, cached.tagName)
+        };
       } catch {
         // Ignore
       }
