@@ -48,10 +48,8 @@ cask "${CASK_NAME}" do
 
   app "Obsidian Quick Entry.app"
 
-  postflight do
-    system_command "xattr",
-                   args: ["-cr", "#{appdir}/Obsidian Quick Entry.app"],
-                   sudo: false
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-cr", "#{appdir}/Obsidian Quick Entry.app"]
   end
 
   zap trash: [
