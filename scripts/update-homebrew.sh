@@ -48,9 +48,10 @@ cask "${CASK_NAME}" do
 
   app "Obsidian Quick Entry.app"
 
-  postflight_steps do
-    run "/usr/bin/xattr", args: ["-cr", "#{appdir}/Obsidian Quick Entry.app"]
-  end
+  caveats <<~EOS
+    Obsidian Quick Entry is not notarized. If macOS blocks it from running, execute:
+      xattr -cr "/Applications/Obsidian Quick Entry.app"
+  EOS
 
   zap trash: [
     "~/Library/Application Support/com.t-kawasaki.obsidian-quick-entry",
